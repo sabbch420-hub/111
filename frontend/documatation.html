@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Guide d’utilisation - IntelliBuild</title>
+  <script src="config.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script data-theme-role-script>
+    (function () {
+      var path = (window.location.pathname.split('/').pop() || '').toLowerCase();
+      var page = path.replace('.html', '') || 'home';
+      document.documentElement.setAttribute('data-page', page);
+
+      function isTokenUsable(token) {
+        if (!token) return false;
+        var parts = token.split('.');
+        if (parts.length !== 3) return false;
+        try {
+          var payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+          if (!payload || !payload.exp) return true;
+          return Date.now() < payload.exp * 1000;
+        } catch (e) {
+          return true;
+        }
+      }
+
+      var token = localStorage.getItem('userToken');
+      var storedRole = (localStorage.getItem('userRole') || '').toLowerCase();
+      var hasKnownRole = storedRole === 'admin' || storedRole === 'user';
+      var role = isTokenUsable(token) && hasKnownRole ? storedRole : '';
+
+      if (!role) {
+        if (page.indexOf('admin') >= 0 || ['index','ajouter-objet','objets','localisations','parametres'].indexOf(page) >= 0) {
+          role = 'admin';
+        } else if (page.indexOf('user') >= 0 || ['user','mesobjet','localisations-user','parametres-user'].indexOf(page) >= 0) {
+          role = 'user';
+        } else {
+          role = 'guest';
+        }
+      }
+      document.documentElement.setAttribute('data-role', role);
+    })();
+  </script>
+  <style>
+    .doc-page {
+      min-height: 100vh;
+      padding: 140px 20px 80px;
+      background:
+        linear-gradient(180deg, rgba(15, 23, 42, 0.48), rgba(15, 23, 42, 0.48)),
+        url("https://images.pexels.com/photos/4040649/pexels-photo-4040649.jpeg")  no-repeat center center;
+      background-size: cover;
+    }
+
+    .doc-shell {
+      width: min(1240px, 100%);
+      margin: 0 auto;
+      display: grid;
+      gap: 60px;
+    }
+
+    .doc-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 60px;
+      align-items: start;
+    }
+
+    .doc-content {
+      display: grid;
+      gap: 40px;
+    }
+
+    .page-hero {
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.9));
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      box-shadow: 0 22px 44px rgba(8, 17, 31, 0.16);
+    }
+
+    .hero-copy h1 {
+      color: #0b1324;
+      line-height: 1.08;
+      text-wrap: balance;
+    }
+
+    .hero-copy p {
+      color: #24344f;
+      font-weight: 500;
+      max-width: 68ch;
+    }
+
+    .page-kicker {
+      background: #0f172a;
+      color: #ffffff;
+      border: 1px solid #0f172a;
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.24);
+    }
+
+    .page-badge {
+      background: rgba(255, 255, 255, 0.96);
+      border: 1px solid rgba(100, 116, 139, 0.45);
+      color: #0f172a;
+      font-weight: 800;
+      box-shadow: 0 10px 20px rgba(15, 23, 42, 0.12);
+    }
+
+    #docBadgePrimary {
+      background: linear-gradient(135deg, #0f766e, #0ea5a4);
+      border-color: rgba(15, 118, 110, 0.65);
+      color: #ffffff;
+    }
+
+    .hero-note-card {
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(248, 250, 252, 0.92));
+      border: 1px solid rgba(226, 232, 240, 0.95);
+    }
+
+    .doc-card,
+    .doc-step-card,
+    .doc-role-card,
+    .doc-faq-card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.78));
+      border: 1px solid rgba(255,255,255,0.46);
+      border-radius: 28px;
+      box-shadow: 0 18px 40px rgba(8, 17, 31, 0.14);
+      backdrop-filter: blur(20px);
+    }
+
+    .doc-card {
+      padding: 32px;
+    }
+
+    .doc-section-title {
+      margin: 0 0 16px;
+      font-size: clamp(1.8rem, 3vw, 2.4rem);
+      color: #08111f;
+    }
+
+    .doc-copy {
+      color: #41506a;
+      line-height: 1.8;
+      margin: 0;
+    }
+
+    .doc-list {
+      list-style: none;
+      padding: 0;
+      margin: 18px 0 0;
+      display: grid;
+      gap: 12px;
+    }
+
+    .doc-list li {
+      position: relative;
+      padding-left: 18px;
+      color: #41506a;
+      line-height: 1.75;
+    }
+
+    .doc-list li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 11px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent, #f59e0b);
+      box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.18);
+    }
+
+    .doc-step-grid,
+    .doc-role-grid,
+    .doc-faq-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 24px;
+      margin-top: 22px;
+    }
+
+    .doc-step-card,
+    .doc-role-card,
+    .doc-faq-card {
+      padding: 24px;
+    }
+
+    .doc-step-number {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent, #f59e0b), var(--accent-strong, #d97706));
+      color: #fff;
+      font-weight: 800;
+      margin-bottom: 14px;
+    }
+
+    .doc-step-card h3,
+    .doc-role-card h3,
+    .doc-faq-card h3,
+    .doc-step-card p,
+    .doc-role-card p,
+    .doc-faq-card p {
+      margin: 0;
+      color: #41506a;
+      line-height: 1.75;
+    }
+
+    .doc-role-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-weight: 800;
+      font-size: 0.8rem;
+      margin-bottom: 14px;
+      background: rgba(8, 17, 31, 0.06);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      color: #101a2c;
+    }
+
+    .doc-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+
+    .auth-chip {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(8, 17, 31, 0.06);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      color: #101a2c;
+      font-size: 0.85rem;
+      font-weight: 800;
+    }
+
+    html[data-role="user"] .topbar,
+    html[data-role="admin"] .topbar {
+      display: none;
+    }
+
+    html[data-role="user"] .ib-sidebar,
+    html[data-role="admin"] .ib-sidebar {
+      position: fixed;
+      inset: 0 auto 0 0;
+      z-index: 100;
+    }
+
+    html[data-role="user"] .doc-page,
+    html[data-role="admin"] .doc-page {
+      padding: 32px 20px 60px;
+      margin-left: 280px;
+    }
+
+    html[data-role="user"] .site-footer,
+    html[data-role="admin"] .site-footer {
+      width: calc(100% - 280px);
+      margin: 0 0 0 280px;
+    }
+
+    .site-footer {
+      background: rgba(255, 255, 255, 0.92);
+      color: #0f172a;
+      backdrop-filter: blur(14px);
+    }
+
+    .site-footer .brand span,
+    .site-footer > div {
+      color: #0f172a;
+    }
+
+    @media (max-width: 980px) {
+      .doc-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 1080px) {
+      .doc-step-grid,
+      .doc-role-grid,
+      .doc-faq-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .doc-page {
+        padding: 128px 14px 50px;
+      }
+
+      html[data-role="user"] .ib-sidebar,
+      html[data-role="admin"] .ib-sidebar {
+        position: static;
+        width: 100%;
+        min-height: auto;
+      }
+
+      html[data-role="user"] .doc-page,
+      html[data-role="user"] .site-footer,
+      html[data-role="admin"] .doc-page,
+      html[data-role="admin"] .site-footer {
+        width: 100%;
+        margin-left: 0 !important;
+      }
+
+      html[data-role="user"] .doc-page,
+      html[data-role="admin"] .doc-page {
+        padding-top: 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<script src="sidebar-loader.js?v=20260501-favorites-fix2"></script>
+
+<header class="topbar">
+  <h2>
+    <div class="logo">
+      <img class="brand-logo-lg" src="intellibuild-mark.svg" alt="IntelliBuild">
+      <span>IntelliBuild</span>
+    </div>
+  </h2>
+
+  <nav class="menu">
+    <a id="docNavHome" href="p1.html">Accueil</a>
+    <a id="docNavAbout" href="about.html">À propos</a>
+    <a id="docNavCurrent" href="documatation.html">Documentation</a>
+  </nav>
+
+  <div class="right">
+    <select class="lang" id="docLangSelect">
+      <option value="fr">FR</option>
+      <option value="en">EN</option>
+      <option value="ar">AR</option>
+    </select>
+    <span id="docAuthChip" class="auth-chip">Connecté</span>
+    <a id="docDashboardBtn" href="user.html" class="btn outline" style="display:none;">Dashboard</a>
+    <a id="docLoginBtn" href="login.html" class="btn outline">Connexion</a>
+    <a id="docRegisterBtn" href="register.html" class="btn primary">Inscription</a>
+  </div>
+</header>
+
+<main class="doc-page">
+  <div class="doc-shell">
+    <section class="page-hero">
+      <div class="hero-copy">
+        <span class="page-kicker">Guide d’utilisation</span>
+        <h1>Guide d’utilisation IntelliBuild</h1>
+        <p>Comment naviguer dans votre bâtiment intelligent. Cette page vous accompagne dans la découverte de la plateforme pour localiser, interagir et gérer vos ressources connectées au sein du bâtiment.</p>
+        <div class="doc-actions">
+          <a id="docHeroPrimary" href="login.html" class="btn primary big">Commencer</a>
+          <a id="docHeroSecondary" href="p1.html" class="btn outline big">Retour accueil</a>
+        </div>
+      </div>
+
+      <div class="hero-note-card">
+        <h3 class="side-panel-title">Ce guide vous montre</h3>
+        <ul class="doc-list">
+          <li>Comment démarrer et accéder à votre espace personnel.</li>
+          <li>Comment rechercher et localiser rapidement un objet.</li>
+          <li>Comment interagir avec les objets connectés.</li>
+          <li>Comment suivre votre historique et vos notifications.</li>
+          <li>Le workflow idéal pour une utilisation simple et efficace.</li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="doc-grid">
+      <div class="doc-content">
+        <section id="demarrage" class="doc-card">
+          <h2 class="doc-section-title">1. Démarrage rapide</h2>
+          <p class="doc-copy">Pour commencer, créez un compte ou connectez-vous. L'application vous dirigera vers votre Tableau de Bord personnel.</p>
+          <div class="doc-step-grid">
+            <article class="doc-step-card">
+              <div class="doc-step-number">1</div>
+              <h3>Inscription</h3>
+              <p>Créez votre profil en quelques secondes.</p>
+            </article>
+            <article class="doc-step-card">
+              <div class="doc-step-number">2</div>
+              <h3>Connexion</h3>
+              <p>Accédez à votre espace sécurisé.</p>
+            </article>
+            <article class="doc-step-card">
+              <div class="doc-step-number">3</div>
+              <h3>Langue</h3>
+              <p>Adaptez l'interface selon votre préférence via le sélecteur en haut de page.</p>
+            </article>
+            <article class="doc-step-card">
+              <div class="doc-step-number">4</div>
+              <h3>Navigation</h3>
+              <p>Une fois connecté, explorez les pages utiles depuis votre espace personnel.</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="roles" class="doc-card">
+          <h2 class="doc-section-title">2. Rechercher et Localiser</h2>
+          <p class="doc-copy">Le cœur d'IntelliBuild est son moteur de recherche intelligent :</p>
+          <ul class="doc-list">
+            <li>Recherche sémantique : Tapez simplement le nom ou le type d'un objet (ex: "Capteur", "Imprimante").</li>
+            <li>Localisation 3D : Utilisez la page Localisations pour visualiser l'architecture du bâtiment et sélectionner une zone précise pour filtrer les objets à proximité.</li>
+            <li>État initial : Par défaut, la liste est vide pour vous permettre de lancer une recherche ciblée.</li>
+          </ul>
+        </section>
+
+        <section id="utilisateur" class="doc-card">
+          <h2 class="doc-section-title">3. Interagir avec les objets</h2>
+          <p class="doc-copy">Une fois l'objet trouvé, vous disposez de plusieurs outils pour l'exploiter :</p>
+          <ul class="doc-list">
+            <li>Contrôle en direct : Interagissez avec les objets compatibles (allumer/éteindre, consulter les mesures).</li>
+            <li>Favoris : Ajoutez vos objets fréquents à votre liste de Favoris</li>
+            <li>Signalement : Si un objet ne fonctionne pas correctement, utilisez le bouton "Signaler un problème" pour avertir l'administration.</li>
+          </ul>
+        </section>
+
+        <section id="workflow" class="doc-card">
+          <h2 class="doc-section-title">4. Suivi et Historique</h2>
+          <p class="doc-copy">Gardez une trace de toutes vos activités dans le bâtiment :</p>
+          <ul class="doc-list">
+            <li>Mon Historique : Consultez la liste de vos interactions passées avec les objets.</li>
+            <li>Notifications : Recevez des alertes importantes (disponibilité d'une ressource, maintenance, etc.).</li>
+            <li>Profil : Gérez vos informations personnelles et vos préférences de sécurité.</li>
+          </ul>
+        </section>
+
+        <section id="admin" class="doc-card">
+          <h2 class="doc-section-title">5. Workflow idéal (Utilisateur)</h2>
+          <div class="doc-step-grid">
+            <article class="doc-step-card">
+              <div class="doc-step-number">A</div>
+              <h3>Identifier</h3>
+              <p>Recherchez l'objet souhaité via la barre de recherche.</p>
+            </article>
+            <article class="doc-step-card">
+              <div class="doc-step-number">B</div>
+              <h3>Se situer</h3>
+              <p>Vérifiez la position de l'objet sur le plan du bâtiment.</p>
+            </article>
+            <article class="doc-step-card">
+              <div class="doc-step-number">C</div>
+              <h3>Utiliser</h3>
+              <p>Interagissez avec l'objet selon vos besoins.</p>
+            </article>
+            <article class="doc-step-card">
+              <div class="doc-step-number">D</div>
+              <h3>Signaler</h3>
+              <p>En cas de panne, envoyez un signalement immédiat.</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="faq" class="doc-card">
+          <h2 class="doc-section-title">FAQ (Questions fréquentes)</h2>
+          <div class="doc-faq-grid">
+            <article class="doc-faq-card">
+              <h3>Comment retrouver mes objets préférés ?</h3>
+              <p>Ils sont regroupés dans l'onglet "Favoris" de votre espace personnel.</p>
+            </article>
+            <article class="doc-faq-card">
+              <h3>Pourquoi je ne vois aucun résultat ?</h3>
+              <p>Assurez-vous d'avoir saisi un mot-clé ou vérifiez que l'objet n'est pas hors-ligne.</p>
+            </article>
+            <article class="doc-faq-card">
+              <h3>Que faire si un objet est en panne ?</h3>
+              <p>Cliquez sur l'objet, puis sur l'icône de signalement pour créer une alerte automatique.</p>
+            </article>
+            <article class="doc-faq-card">
+              <h3>Comment naviguer dans le bâtiment ?</h3>
+              <p>Utilisez la page Localisations et la barre de recherche pour filtrer les objets proches.</p>
+            </article>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="brand">
+    <img src="intellibuild-mark.svg" alt="IntelliBuild">
+    <span>IntelliBuild</span>
+  </div>
+  <div>(c) 2026 IntelliBuild. All rights reserved.</div>
+</footer>
+
+<script src="translations.js"></script>
+<script>
+  (function () {
+    function tr(key, fallback, params) {
+      if (window.getTranslationText) return window.getTranslationText(key, fallback, params);
+      return fallback;
+    }
+
+    function isTokenUsable(token) {
+      if (!token) return false;
+      var parts = token.split('.');
+      if (parts.length !== 3) return false;
+      try {
+        var payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+        if (!payload || !payload.exp) return true;
+        return Date.now() < payload.exp * 1000;
+      } catch (e) {
+        return true;
+      }
+    }
+
+    var token = localStorage.getItem('userToken');
+    var storedRole = (localStorage.getItem('userRole') || '').toLowerCase();
+    var hasKnownRole = storedRole === 'admin' || storedRole === 'user';
+    var isAuthenticated = isTokenUsable(token) && hasKnownRole;
+    var role = isAuthenticated ? storedRole : 'guest';
+    var lang = (localStorage.getItem('lang') || 'fr').toLowerCase();
+    var dashboardHref = role === 'admin' ? 'index.html' : 'user.html';
+    var dashboardLabel = tr('nav_dashboard', 'Dashboard');
+
+    if (!isAuthenticated) {
+      localStorage.removeItem('userToken');
+      localStorage.removeItem('userRole');
+    }
+
+    Array.from(document.querySelectorAll('select')).forEach(function (select) {
+      select.value = lang;
+      select.addEventListener('change', function () {
+        if (window.setLanguage) {
+          window.setLanguage(select.value);
+        } else {
+          localStorage.setItem('lang', select.value);
+        }
+      });
+    });
+
+    var navHome = document.getElementById('docNavHome');
+    var navAbout = document.getElementById('docNavAbout');
+    var authChip = document.getElementById('docAuthChip');
+    var dashboardBtn = document.getElementById('docDashboardBtn');
+    var loginBtn = document.getElementById('docLoginBtn');
+    var registerBtn = document.getElementById('docRegisterBtn');
+    var heroPrimary = document.getElementById('docHeroPrimary');
+    var heroSecondary = document.getElementById('docHeroSecondary');
+    var badgePrimary = document.getElementById('docBadgePrimary');
+
+    function syncAuthenticatedCopy() {
+      dashboardLabel = tr('nav_dashboard', 'Dashboard');
+
+      if (navHome) {
+        navHome.href = isAuthenticated ? dashboardHref : 'p1.html';
+        navHome.textContent = isAuthenticated ? dashboardLabel : tr('nav_home', 'Accueil');
+      }
+
+      if (!isAuthenticated) return;
+
+      if (navAbout) {
+        navAbout.style.display = 'none';
+      }
+      if (loginBtn) {
+        loginBtn.style.display = 'none';
+      }
+      if (registerBtn) {
+        registerBtn.style.display = 'none';
+      }
+      if (dashboardBtn) {
+        dashboardBtn.href = dashboardHref;
+        dashboardBtn.textContent = dashboardLabel;
+        dashboardBtn.style.display = 'inline-flex';
+      }
+      if (authChip) {
+        authChip.textContent = role === 'admin'
+          ? tr('connected_as_admin', 'Connecté en admin')
+          : tr('connected_as_user', 'Connecté en utilisateur');
+        authChip.style.display = 'inline-flex';
+      }
+      if (heroPrimary) {
+        heroPrimary.href = dashboardHref;
+        heroPrimary.textContent = 'Retour à la recherche';
+      }
+      if (heroSecondary) {
+        heroSecondary.style.display = 'none';
+      }
+      if (badgePrimary) {
+        badgePrimary.textContent = tr('connected_space', 'Espace connecté');
+      }
+    }
+
+    syncAuthenticatedCopy();
+    window.addEventListener('app:languagechange', syncAuthenticatedCopy);
+  })();
+
+  (function initNavCollectionsOverlay() {
+    const favTrigger = document.getElementById("openFavoritesOverlay");
+    const repTrigger = document.getElementById("openReportsOverlay");
+    if (!favTrigger && !repTrigger) return;
+
+    function esc(v) {
+      return String(v || "").replace(/[&<>"]/g, function (ch) {
+        if (ch === "&") return "&amp;";
+        if (ch === "<") return "&lt;";
+        if (ch === ">") return "&gt;";
+        return "&quot;";
+      });
+    }
+
+    function decode(v) {
+      return String(v || "")
+        .replace(/&apos;/g, "'")
+        .replace(/&quot;/g, '"')
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&amp;/g, "&")
+        .trim();
+    }
+
+    function readJson(key) {
+      try {
+        const raw = localStorage.getItem(key);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function getName(item) {
+      const name = decode(item && item.name);
+      if (name) return name;
+      const id = decode(item && item.id);
+      return id ? `Objet ${id}` : "Objet sans nom";
+    }
+
+    function ensureShell() {
+      let shell = document.getElementById("navCollectionsOverlay");
+      if (shell) return shell;
+
+      const style = document.createElement("style");
+      style.id = "navCollectionsOverlayStyle";
+      style.textContent = `
+        .nav-collections-overlay { position: fixed; inset: 0; z-index: 2500; display: grid; place-items: center; }
+        .nav-collections-overlay[hidden] { display: none; }
+        .nav-collections-backdrop { position: absolute; inset: 0; background: rgba(2, 6, 23, 0.66); backdrop-filter: blur(3px); }
+        .nav-collections-panel { position: relative; width: min(860px, calc(100vw - 30px)); max-height: calc(100vh - 40px); overflow: auto; border-radius: 20px; border: 1px solid rgba(148, 163, 184, 0.3); background: rgba(255, 255, 255, 0.98); box-shadow: 0 24px 55px rgba(2, 6, 23, 0.35); }
+        .nav-collections-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 16px 18px; border-bottom: 1px solid #e2e8f0; }
+        .nav-collections-title { margin: 0; font-size: 20px; color: #0f172a; }
+        .nav-collections-close { border: none; width: 34px; height: 34px; border-radius: 999px; background: #e2e8f0; color: #0f172a; font-size: 18px; cursor: pointer; }
+        .nav-collections-body { padding: 16px 18px; }
+        .nav-collections-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+        .nav-collections-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+        .nav-collections-name { margin: 0; color: #0f172a; font-weight: 700; }
+        .nav-collections-sub { margin: 4px 0 0; color: #64748b; font-size: 12px; }
+        .nav-collections-status { display: inline-block; margin-top: 8px; padding: 4px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+        .nav-collections-status.pending { background: #fef3c7; color: #92400e; }
+        .nav-collections-status.done { background: #dcfce7; color: #166534; }
+        .nav-collections-status.rejected { background: #fee2e2; color: #b91c1c; }
+        .nav-collections-text { margin: 8px 0 0; color: #334155; font-size: 13px; line-height: 1.45; }
+        .nav-collections-remove { border: none; background: #fee2e2; color: #b91c1c; padding: 7px 10px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+        .nav-collections-empty { color: #64748b; text-align: center; padding: 18px; }
+      `;
+      document.head.appendChild(style);
+
+      shell = document.createElement("div");
+      shell.id = "navCollectionsOverlay";
+      shell.className = "nav-collections-overlay";
+      shell.hidden = true;
+      shell.innerHTML = `
+        <div class="nav-collections-backdrop" id="navCollectionsBackdrop"></div>
+        <div class="nav-collections-panel" role="dialog" aria-modal="true" aria-labelledby="navCollectionsTitle">
+          <div class="nav-collections-head">
+            <h3 class="nav-collections-title" id="navCollectionsTitle">Détails</h3>
+            <button type="button" class="nav-collections-close" id="navCollectionsClose" aria-label="Fermer">x</button>
+          </div>
+          <div class="nav-collections-body" id="navCollectionsBody"></div>
+        </div>
+      `;
+      document.body.appendChild(shell);
+
+      function closeOverlay() {
+        shell.hidden = true;
+        document.body.style.overflow = "";
+      }
+
+      document.getElementById("navCollectionsBackdrop").addEventListener("click", closeOverlay);
+      document.getElementById("navCollectionsClose").addEventListener("click", closeOverlay);
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && !shell.hidden) closeOverlay();
+      });
+
+      shell.addEventListener("click", function (event) {
+        const removeFav = event.target.closest("[data-remove-fav]");
+        if (removeFav) {
+          const id = String(removeFav.getAttribute("data-remove-fav") || "");
+          if (window.__ibFavoritesStore && typeof window.__ibFavoritesStore.removeFavoriteById === "function") {
+            Promise.resolve(window.__ibFavoritesStore.removeFavoriteById(id)).then(function () {
+              openFavorites();
+            });
+            return;
+          }
+          const next = readJson("userFavorites").filter(function (f) {
+            return String((f && f.id) || "") !== id;
+          });
+          localStorage.setItem("userFavorites", JSON.stringify(next));
+          openFavorites();
+          return;
+        }
+
+        const removeRep = event.target.closest("[data-remove-report]");
+        if (removeRep) {
+          const idx = Number(removeRep.getAttribute("data-remove-report"));
+          const next = readJson("userReports");
+          if (Number.isInteger(idx) && idx >= 0 && idx < next.length) {
+            next.splice(idx, 1);
+            localStorage.setItem("userReports", JSON.stringify(next));
+          }
+          openReports();
+        }
+      });
+
+      return shell;
+    }
+
+    function openOverlay(title, html) {
+      const shell = ensureShell();
+      document.getElementById("navCollectionsTitle").textContent = title;
+      document.getElementById("navCollectionsBody").innerHTML = html;
+      shell.hidden = false;
+      document.body.style.overflow = "hidden";
+    }
+
+    function openFavorites() {
+      const favorites = window.__ibFavoritesStore && typeof window.__ibFavoritesStore.getFavoritesRaw === "function"
+        ? window.__ibFavoritesStore.getFavoritesRaw()
+        : readJson("userFavorites");
+      if (!favorites.length) {
+        openOverlay("Mes favoris", '<p class="nav-collections-empty">Aucun objet dans vos favoris pour le moment.</p>');
+        return;
+      }
+
+      const cards = favorites.map(function (fav) {
+        const id = String((fav && fav.id) || "");
+        const date = fav && fav.addedAt ? new Date(fav.addedAt).toLocaleDateString("fr-FR") : "-";
+        return `
+          <div class="nav-collections-card">
+            <div class="nav-collections-row">
+              <div>
+                <p class="nav-collections-name">${esc(getName(fav))}</p>
+                <p class="nav-collections-sub">Ajouté le ${esc(date)}</p>
+              </div>
+              <button type="button" class="nav-collections-remove" data-remove-fav="${esc(id)}">Retirer</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      openOverlay("Mes favoris", cards);
+    }
+
+    function statusClass(value) {
+      const txt = String(value || "").toLowerCase();
+      if (txt.includes("trait")) return "done";
+      if (txt.includes("refus") || txt.includes("rejet")) return "rejected";
+      return "pending";
+    }
+
+    function openReports() {
+      const reports = readJson("userReports");
+      if (!reports.length) {
+        openOverlay("Problèmes signalés", '<p class="nav-collections-empty">Aucun problème signalé pour le moment.</p>');
+        return;
+      }
+
+      const cards = reports.map(function (rep, idx) {
+        const date = rep && rep.reportedAt ? new Date(rep.reportedAt).toLocaleDateString("fr-FR") : "-";
+        const status = String((rep && rep.status) || "En attente");
+        return `
+          <div class="nav-collections-card">
+            <div class="nav-collections-row">
+              <div>
+                <p class="nav-collections-name">${esc(getName(rep))}</p>
+                <p class="nav-collections-sub"><strong>Type:</strong> ${esc((rep && rep.type) || "Non spécifié")} • ${esc(date)}</p>
+                <span class="nav-collections-status ${statusClass(status)}">${esc(status)}</span>
+                <p class="nav-collections-text">${esc((rep && rep.description) || "Description non fournie")}</p>
+              </div>
+              <button type="button" class="nav-collections-remove" data-remove-report="${idx}">Supprimer</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      openOverlay("Problèmes signalés", cards);
+    }
+
+    if (favTrigger) {
+      favTrigger.addEventListener("click", function (event) {
+        event.preventDefault();
+        openFavorites();
+      });
+    }
+    if (repTrigger) {
+      repTrigger.addEventListener("click", function (event) {
+        event.preventDefault();
+        openReports();
+      });
+    }
+  })();
+</script>
+<script src="sidebar-overlay-active.js"></script>
+
+</body>
+</html>
