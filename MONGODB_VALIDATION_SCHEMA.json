@@ -1,0 +1,139 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": [
+      "id",
+      "name",
+      "type",
+      "location",
+      "status"
+    ],
+    "properties": {
+      "_id": {
+        "bsonType": "objectId"
+      },
+      "id": {
+        "bsonType": "string",
+        "description": "Unique identifier for the thing"
+      },
+      "name": {
+        "bsonType": "string",
+        "description": "Name of the thing"
+      },
+      "search_name_norm": {
+        "bsonType": "string",
+        "description": "Normalized name for search"
+      },
+      "type": {
+        "bsonType": "string",
+        "description": "Category/type of the thing"
+      },
+      "description": {
+        "bsonType": "string",
+        "description": "Detailed description"
+      },
+      "status": {
+        "bsonType": "string",
+        "enum": ["disponible", "en_utilisation", "maintenance", "indisponible"],
+        "description": "Status of the thing"
+      },
+      "location": {
+        "bsonType": "object",
+        "required": ["room"],
+        "properties": {
+          "@type": {
+            "bsonType": "string"
+          },
+          "name": {
+            "bsonType": "string"
+          },
+          "room": {
+            "bsonType": "string",
+            "description": "Room/location name"
+          },
+          "floor": {
+            "bsonType": "string",
+            "description": "Building floor label"
+          },
+          "etage": {
+            "bsonType": "string",
+            "description": "Alias de compatibilite pour l'etage"
+          },
+          "x": {
+            "bsonType": ["double", "int"],
+            "description": "X coordinate"
+          },
+          "y": {
+            "bsonType": ["double", "int"],
+            "description": "Y coordinate"
+          },
+          "z": {
+            "bsonType": ["double", "int"],
+            "description": "Z coordinate"
+          }
+        }
+      },
+      "@context": {
+        "bsonType": "string"
+      },
+      "@type": {
+        "bsonType": "string"
+      },
+      "thingDescription": {
+        "bsonType": "object",
+        "description": "Complete W3C Web of Things Thing Description JSON"
+      },
+      "td_summary": {
+        "bsonType": "object",
+        "description": "Extracted Thing Description metadata used by the app",
+        "properties": {
+          "td_id": {
+            "bsonType": "string"
+          },
+          "wot_id": {
+            "bsonType": "string"
+          },
+          "title": {
+            "bsonType": "string"
+          },
+          "name": {
+            "bsonType": "string"
+          },
+          "type": {
+            "bsonType": "string"
+          },
+          "description": {
+            "bsonType": "string"
+          },
+          "properties": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "string"
+            }
+          },
+          "actions": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "string"
+            }
+          },
+          "events": {
+            "bsonType": "array",
+            "items": {
+              "bsonType": "string"
+            }
+          },
+          "source": {
+            "bsonType": "string"
+          },
+          "source_url": {
+            "bsonType": "string"
+          },
+          "retrieved_at": {
+            "bsonType": "date"
+          }
+        }
+      }
+    }
+  }
+}
