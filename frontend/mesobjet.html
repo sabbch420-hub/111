@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title data-key="my_objects_doc_title">Mes objets - IntelliBuild</title>
+  <link rel="icon" type="image/svg+xml" href="intellibuild-mark.svg">
   <script src="config.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
@@ -1707,7 +1708,10 @@
       const safeId = String(thingId || "").trim();
       if (!safeId) return;
 
-      const confirmMsg = tr("confirm_return_object", "Voulez-vous vraiment rendre l'objet {id} ?", { id: safeId });
+      const item = mesObjetsCache.get(safeId);
+      const displayName = String(item && item.name ? item.name : tr("objects_all", "Objet")).trim() || tr("objects_all", "Objet");
+
+      const confirmMsg = tr("confirm_return_object", "Voulez-vous vraiment rendre l'objet {name} ?", { name: displayName });
       const confirmed = await askConfirm(confirmMsg);
       if (!confirmed) return;
 

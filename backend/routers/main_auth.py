@@ -480,7 +480,6 @@ def _is_admin_history_entry(row: dict) -> bool:
     return action in {
         "utilisateurs",
         "gestion utilisateurs",
-        "session",
         "profil",
         "navigation",
         "consultation",

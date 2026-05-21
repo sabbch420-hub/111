@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title data-key="notifications_admin_doc_title">Notifications Admin - IntelliBuild</title>
+  <link rel="icon" type="image/svg+xml" href="intellibuild-mark.svg">
   <script src="config.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <script src="admin-access-guard.js"></script>
@@ -446,6 +447,26 @@
       return "type-info";
     }
 
+    function isEssentialAdminNotification(notification) {
+      const action = String(notification && notification.metadata && notification.metadata.action ? notification.metadata.action : "").trim().toLowerCase();
+      const type = String(notification && notification.type ? notification.type : "").trim().toLowerCase();
+      const essentialActions = new Set([
+        "problem_report",
+        "take",
+        "return",
+        "auto_return",
+        "admin_release",
+        "add",
+        "add_from_td",
+        "update",
+        "status",
+        "delete",
+        "cleanup_keywords"
+      ]);
+
+      return essentialActions.has(action) || type === "warning" || type === "error";
+    }
+
     function openOverlay(title, htmlContent) {
       overlayTitle.textContent = title;
       overlayBody.innerHTML = htmlContent;
@@ -508,7 +529,7 @@
       const list = Array.isArray(data) ? data : [];
       return list.filter(function (entry) {
         const action = String(entry && entry.action ? entry.action : "").trim().toLowerCase();
-        return action.includes("admin") || ["utilisateurs", "session", "profil", "navigation"].includes(action);
+        return action.includes("admin") || ["utilisateurs", "profil", "navigation"].includes(action);
       });
     }
 
@@ -559,7 +580,7 @@
       try {
         const res = await fetch(`${API_BASE}/notifications/me?limit=100`, { headers: authHeaders() });
         const data = await res.json().catch(() => []);
-        const list = Array.isArray(data) ? data : [];
+        const list = (Array.isArray(data) ? data : []).filter(isEssentialAdminNotification);
 
         notifList.innerHTML = list.map((n) => `
           <article class="notif ${n.is_read ? "" : "unread-item"}" data-id="${n.id}" data-read="${n.is_read ? "1" : "0"}">

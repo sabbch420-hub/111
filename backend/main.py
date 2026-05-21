@@ -188,6 +188,14 @@ def health() -> dict[str, str]:
     return {"status": "ok", "app": "intellibuild"}
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon() -> FileResponse:
+    favicon_path = FRONTEND_DIR / "intellibuild-mark.svg"
+    if favicon_path.exists():
+        return FileResponse(favicon_path, media_type="image/svg+xml")
+    raise HTTPException(status_code=404, detail="Favicon introuvable")
+
+
 @app.get("/index.html", include_in_schema=False)
 def admin_index_page(request: Request):
     return _serve_admin_page(request, "index.html")
