@@ -92,7 +92,7 @@ def get_overview_stats(request: Request):
         broken = things_collection.count_documents({
             "$or": [
                 {"maintenance_state": {"$exists": True, "$ne": ""}},
-                {"status": "maintenance"}
+                {"status": {"$in": ["maintenance", "panne", "en panne"]}}
             ]
         })
         

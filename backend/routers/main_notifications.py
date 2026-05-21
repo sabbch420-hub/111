@@ -528,7 +528,7 @@ def review_problem_report(report_id: str, request: Request, data: ProblemReportD
 
     if decision == "accept":
         if thing_id:
-            updated_thing = _update_reported_thing_state(thing_id, "inactive", "en panne")
+            updated_thing = _update_reported_thing_state(thing_id, "panne", "en panne")
             update_fields.update(_extract_thing_snapshot(updated_thing))
             update_fields["status"] = "Accepte - objet en panne"
         else:

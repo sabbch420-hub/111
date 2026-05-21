@@ -237,6 +237,7 @@
         let objectTypeFilters = [];
         let editingThingId = '';
         let objectsAutoRefreshTimer = null;
+        let pendingObjectDetailId = String(new URLSearchParams(window.location.search || '').get('id') || '').trim();
 
         // --- FONCTIONS DE L'OVERLAY ---
         function tr(key, fallback) {
@@ -256,6 +257,38 @@
             infoOverlay.hidden = true;
             infoOverlay.setAttribute('aria-hidden', 'true');
             document.body.style.overflow = '';
+        }
+
+        function openObjectDetailById(itemId) {
+            const cleanId = String(itemId || '').trim();
+            if (!cleanId) return false;
+
+            const source = objectCacheById[cleanId];
+            if (!source) return false;
+
+            const currentBorrow = getCurrentBorrow(source);
+            const details = {
+                id: cleanId,
+                name: source.name || 'Sans nom',
+                type: source.type || source['@type'] || 'Objet Inconnu',
+                location: (source.location && source.location.room) || source.location || 'N/A',
+                status: getObjectDisplayStatus(source),
+                description: source.description || '',
+                currentBorrow: currentBorrow,
+                canReactivate: canReactivateThing(source, currentBorrow, getObjectDisplayStatus(source))
+            };
+
+            openOverlay('Detail de l\'objet', buildDetailOverlayHtml(details));
+
+            const cards = Array.from(objGrid.querySelectorAll('.object-card'));
+            const card = cards.find(function (element) {
+                return String(element.dataset.id || '').trim() === cleanId;
+            });
+            if (card && typeof card.scrollIntoView === 'function') {
+                card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+
+            return true;
         }
 
         function authHeaders() {
@@ -784,6 +817,14 @@
                         </div>
                     `;
                 }).join('');
+
+                if (pendingObjectDetailId && objectCacheById[pendingObjectDetailId]) {
+                    const detailId = pendingObjectDetailId;
+                    pendingObjectDetailId = '';
+                    setTimeout(function () {
+                        openObjectDetailById(detailId);
+                    }, 0);
+                }
             } catch (error) { 
                 console.error("Erreur backend:", error); 
                 updateObjectInsights([], query);
@@ -1000,21 +1041,7 @@
             const card = event.target.closest('.object-card');
             if (!card || event.target.closest('button')) return;
 
-            const itemId = String(card.dataset.id || '').trim();
-            const source = itemId ? objectCacheById[itemId] : null;
-            if (!source) return;
-
-            const details = {
-                id: itemId,
-                name: source.name || 'Sans nom',
-                type: source.type || source['@type'] || 'Objet Inconnu',
-                location: (source.location && source.location.room) || source.location || 'N/A',
-                status: getObjectDisplayStatus(source),
-                description: source.description || '',
-                currentBorrow: getCurrentBorrow(source),
-                canReactivate: canReactivateThing(source, getCurrentBorrow(source), getObjectDisplayStatus(source))
-            };
-            openOverlay('Detail de l\'objet', buildDetailOverlayHtml(details));
+            openObjectDetailById(String(card.dataset.id || '').trim());
         });
 
         objGrid.addEventListener('keydown', function (event) {
@@ -1023,21 +1050,7 @@
             if (!card) return;
             event.preventDefault();
 
-            const itemId = String(card.dataset.id || '').trim();
-            const source = itemId ? objectCacheById[itemId] : null;
-            if (!source) return;
-
-            const details = {
-                id: itemId,
-                name: source.name || 'Sans nom',
-                type: source.type || source['@type'] || 'Objet Inconnu',
-                location: (source.location && source.location.room) || source.location || 'N/A',
-                status: getObjectDisplayStatus(source),
-                description: source.description || '',
-                currentBorrow: getCurrentBorrow(source),
-                canReactivate: canReactivateThing(source, getCurrentBorrow(source), getObjectDisplayStatus(source))
-            };
-            openOverlay('Detail de l\'objet', buildDetailOverlayHtml(details));
+            openObjectDetailById(String(card.dataset.id || '').trim());
         });
 
         window.openEditObjet = openEditObjet;

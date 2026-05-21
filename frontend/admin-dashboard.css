@@ -264,6 +264,15 @@
   overflow: hidden;
 }
 
+.kpi-card[data-kpi-action] {
+  cursor: pointer;
+}
+
+.kpi-card[data-kpi-action]:focus-visible {
+  outline: 2px solid var(--primary-light);
+  outline-offset: 2px;
+}
+
 .kpi-card::before {
   content: '';
   position: absolute;

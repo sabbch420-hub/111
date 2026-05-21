@@ -14,6 +14,7 @@
     notifBadge: document.getElementById('notifBadge'),
     positionDebugText: document.getElementById('positionDebugText'),
     searchResultsSection: document.getElementById('searchResultsSection'),
+    searchResultsSummary: document.getElementById('searchResultsSummary'),
     tableBody: document.getElementById('tableBody'),
     activityBody: document.getElementById('activityBody'),
     kpiTotal: document.getElementById('kpiTotal'), kpiActive: document.getElementById('kpiActive'), kpiActivePct: document.getElementById('kpiActivePct'), barActive: document.getElementById('barActive'),
@@ -23,7 +24,7 @@
     kpiReports: document.getElementById('kpiReports'), barReports: document.getElementById('barReports'),
     kpiViews: document.getElementById('kpiViews'), kpiRooms: document.getElementById('kpiRooms')
   };
-  let objectCacheById = {}, adminProfileData = null, chartInstances = {};
+  let objectCacheById = {}, adminProfileData = null, chartInstances = {}, lastObjectView = { query: '', showAll: false, label: '' };
 
   function authHeaders() {
     const token = localStorage.getItem('userToken') || '';
@@ -39,7 +40,7 @@
   }
   function norm(v) { return String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim(); }
   function isAvail(v) { const n=norm(v); return n==='active' || n==='disponible'; }
-  function isBroken(v) { return ['panne','en panne','inactive','inactif','indisponible','non disponible','unavailable','hors service','hors-service','hors ligne','hors-ligne','broken','out of order','out_of_order','hs'].includes(norm(v)); }
+  function isBroken(v) { return ['panne','en panne','maintenance','hors service','hors-service','hors ligne','hors-ligne','broken','out of order','out_of_order','hs'].includes(norm(v)); }
   function mapStatusLabel(s){
     const n = norm(s||'');
     if(!n) return 'Inconnu';
@@ -275,19 +276,100 @@
     }catch(e){}
   }
 
-  async function loadObjects(query){
+  function setSearchResultsSummary(title, count, query) {
+    if (!el.searchResultsSummary) return;
+    const safeTitle = String(title || '').trim() || 'Résultats';
+    const safeCount = Number.isFinite(Number(count)) ? Number(count) : 0;
+    const queryText = String(query || '').trim();
+    const suffix = queryText ? ` • filtre: ${queryText}` : '';
+    el.searchResultsSummary.textContent = `${safeTitle} • ${safeCount} objet${safeCount > 1 ? 's' : ''}${suffix}`;
+  }
+
+  function showSearchResultsSection() {
+    if (el.searchResultsSection) {
+      el.searchResultsSection.style.display = 'block';
+      el.searchResultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  function openReportsOverlayFromDashboard() {
+    if (typeof window.__ibOpenAdminReportsOverlay === 'function') {
+      window.__ibOpenAdminReportsOverlay({ preventDefault: function () {} });
+      return;
+    }
+    if (typeof window.openOverlay === 'function') {
+      window.openOverlay('Signalements', '<div class="p-2" style="color:#475569;font-weight:600;">Chargement des signalements...</div>');
+    }
+  }
+
+  function getDashboardSortPriority(item, query, showAll) {
+    const searchText = norm(query || '');
+    const statusValue = dStatus(item);
+    const hasBorrow = item && typeof item.current_borrow === 'object' && item.current_borrow !== null;
+    const isBorrowed = hasBorrow || norm(statusValue) === 'en_utilisation' || norm(statusValue).includes('borrow');
+    const isBrokenItem = isBroken(statusValue) || isBroken(item && item.status) || norm(item && item.maintenance_state);
+    const isAvailable = isAvail(statusValue) || isAvail(item && item.status);
+
+    if (showAll) {
+      if (isAvailable) return 0;
+      if (isBorrowed) return 1;
+      if (isBrokenItem) return 2;
+      if (isBroken(statusValue) || norm(statusValue).includes('indisponibl')) return 3;
+      return 4;
+    }
+
+    if (searchText.includes('en panne') || searchText.includes('panne') || searchText.includes('maintenance')) {
+      return isBrokenItem ? 0 : 1;
+    }
+
+    if (searchText.includes('en utilisation') || searchText.includes('utilisation') || searchText.includes('borrow')) {
+      return isBorrowed ? 0 : 1;
+    }
+
+    if (searchText === 'disponible' || searchText.includes('disponibl')) {
+      return isAvailable ? 0 : 1;
+    }
+
+    if (searchText === 'indisponible' || searchText.includes('indisponibl')) {
+      return !isAvailable ? 0 : 1;
+    }
+
+    return 0;
+  }
+
+  async function loadObjects(query, options){
     if (!el.tableBody) return;
+    const settings = options || {};
     const searchQuery = String(query || '').trim();
-    if (!searchQuery) {
+    lastObjectView = {
+      query: searchQuery,
+      showAll: !!settings.showAll,
+      label: String(settings.label || '').trim()
+    };
+    if (!searchQuery && !settings.showAll) {
       if (el.searchResultsSection) el.searchResultsSection.style.display = 'none';
       el.tableBody.innerHTML = '';
+      if (el.searchResultsSummary) {
+        el.searchResultsSummary.textContent = 'Nom, type, salle, étage et statut';
+      }
       Object.keys(objectCacheById).forEach(function (key) { delete objectCacheById[key]; });
       return;
     }
     try{ const pos=getPos(); const r=await fetch(`${apiBase}/things/search`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({search_query:String(query||'').trim(),user_room:pos.room,user_x:pos.x,user_y:pos.y,user_z:pos.z})});
     const items=await r.json(); objectCacheById={}; const tb=el.tableBody; tb.innerHTML='';
-    if (el.searchResultsSection) el.searchResultsSection.style.display = 'block';
-    items.forEach(item=>{
+    showSearchResultsSection();
+    const filterLabel = String(settings.label || searchQuery || 'Tous les objets').trim();
+    const orderedItems = Array.isArray(items) ? items.slice().sort(function (a, b) {
+      const pa = getDashboardSortPriority(a, searchQuery, !!settings.showAll);
+      const pb = getDashboardSortPriority(b, searchQuery, !!settings.showAll);
+      if (pa !== pb) return pa - pb;
+      const nameA = String(a && a.name ? a.name : '').toLowerCase();
+      const nameB = String(b && b.name ? b.name : '').toLowerCase();
+      if (nameA < nameB) return -1;
+      if (nameA > nameB) return 1;
+      return String(a && a.id ? a.id : '').localeCompare(String(b && b.id ? b.id : ''));
+    }) : [];
+    orderedItems.forEach(item=>{
       const id=String(item.id||'').trim(); if(id) objectCacheById[id]=item;
       const nm=item.name||'Sans nom';
       const tp=item.type||item['@type']||'Objet';
@@ -301,8 +383,44 @@
       tr.innerHTML=`<td class="p-3 font-medium text-sm"><button type="button" onclick="window.location.href='objets.html?id=${esc(id)}'" class="truncate text-left hover:text-emerald-700">${esc(nm)}</button></td><td class="p-3 text-sm text-slate-600">${esc(tp)}</td><td class="p-3 text-sm text-slate-600">${esc(locRaw)}</td><td class="p-3 text-sm text-slate-600">${esc(floorRaw)}</td><td class="p-3"><span class="px-2 py-1 rounded-full text-[10px] font-bold ${isAvail(rawSt)?'bg-emerald-100 text-emerald-700':'bg-rose-100 text-rose-700'}">${esc(st)}</span></td><td class="p-3 text-right flex gap-1 justify-end"><button type="button" onclick="window.location.href='objets.html?id=${esc(id)}'" class="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-emerald-700 transition">Détails</button>${reac}</td>`;
       tb.appendChild(tr);
     });
-    addH('Consultation',(items.length)+' objets','Succes');
+    setSearchResultsSummary(filterLabel, orderedItems.length, searchQuery);
+    addH('Consultation',(orderedItems.length)+' objets','Succes');
     }catch(e){console.error('Objets:',e);}
+  }
+
+  function bindDashboardKpiCards() {
+    document.querySelectorAll('.kpi-card[data-kpi-action]').forEach(function (card) {
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('role', 'button');
+      card.addEventListener('click', function () {
+        const action = String(card.getAttribute('data-kpi-action') || '').trim();
+        const query = String(card.getAttribute('data-kpi-query') || '').trim();
+        const label = String(card.getAttribute('data-kpi-label') || '').trim();
+
+        if (action === 'reports') {
+          openReportsOverlayFromDashboard();
+          return;
+        }
+
+        if (action === 'all') {
+          if (el.globalSearch) el.globalSearch.value = '';
+          loadObjects('', { showAll: true, label: label || 'Tous les objets' });
+          return;
+        }
+
+        if (query) {
+          if (el.globalSearch) el.globalSearch.value = query;
+          loadObjects(query, { label: label || query });
+        }
+      });
+
+      card.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          card.click();
+        }
+      });
+    });
   }
 
   window.reac=async function(id){ try{ const r=await fetch(`${apiBase}/things/${encodeURIComponent(id)}/status`,{method:'PATCH',headers:authHeaders(),body:JSON.stringify({status:'active'})}); if(!r.ok){alert('Erreur');return;} addH('Remise en service',id,'Succes'); loadObjects(); loadStats(); initCharts(); loadActivity(); }catch(e){alert('Erreur réseau');} };
@@ -348,19 +466,20 @@
     if (el.globalSearch && initialQuery) {
       el.globalSearch.value = initialQuery;
     }
+    bindDashboardKpiCards();
     await loadProfile(); loadStats(); initCharts(); loadActivity(); checkNotifs(); loadObjects(initialQuery);
     updatePositionBadge();
     setInterval(()=>{ if(!document.hidden){ checkNotifs(); } }, 30000);
     setInterval(()=>{ if(!document.hidden){ loadStats(); loadActivity(); } }, 60000);
   });
-  document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ loadObjects(el.globalSearch ? String(el.globalSearch.value || '').trim() : ''); loadStats(); updatePositionBadge(); } });
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ loadObjects(lastObjectView.query, lastObjectView.showAll ? { showAll: true, label: lastObjectView.label } : { label: lastObjectView.label }); loadStats(); updatePositionBadge(); } });
   window.addEventListener('storage',e=>{ if(e.key==='user_room'){ updatePositionBadge(); } });
   if (el.globalSearch) {
     el.globalSearch.addEventListener('input', function () {
       const q = String(this.value || '').trim();
       const nq = norm(q);
       // if user types 'verifier' show full list with normalized statuses
-      if(nq && (nq==='verifier' || nq==='verif')){ loadObjects(''); return; }
+      if(nq && (nq==='verifier' || nq==='verif')){ loadObjects('', { showAll: true, label: 'Tous les objets' }); return; }
       loadObjects(q);
     });
   }
