@@ -5,6 +5,24 @@ window.APP_CONFIG = window.APP_CONFIG || {};
     return String(value || "").replace(/\/+$/, "");
   }
 
+  function ensureFavicon() {
+    if (document.querySelector('link[rel="icon"][href$="intellibuild-mark.svg"]')) {
+      return;
+    }
+
+    var head = document.head || document.getElementsByTagName("head")[0];
+    if (!head) {
+      return;
+    }
+
+    var icon = document.createElement("link");
+    icon.rel = "icon";
+    icon.href = "intellibuild-mark.svg";
+    icon.type = "image/svg+xml";
+    icon.sizes = "any";
+    head.appendChild(icon);
+  }
+
   if (!window.APP_CONFIG.API_BASE) {
     var browserOrigin = window.location && window.location.origin ? window.location.origin : "";
     window.APP_CONFIG.API_BASE = normalizeBaseUrl(browserOrigin && browserOrigin !== "null" ? browserOrigin : "http://127.0.0.1:8000");
@@ -19,6 +37,8 @@ window.APP_CONFIG = window.APP_CONFIG || {};
   if (!window.APP_CONFIG.SUPABASE_ANON_KEY) {
     window.APP_CONFIG.SUPABASE_ANON_KEY = "sb_publishable_mqd59UHa-nfnHa6ZBs0dvQ_lL5vp2WK";
   }
+
+  ensureFavicon();
 })();
 
 (function () {
