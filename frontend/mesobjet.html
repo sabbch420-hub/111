@@ -1137,6 +1137,12 @@
       return item && item.location && item.location.room ? item.location.room : "-";
     }
 
+    function openObjectLocationPlan(roomName) {
+      const room = String(roomName || "").trim();
+      if (!room) return;
+      window.location.href = `localisations-user.html?room=${encodeURIComponent(room)}`;
+    }
+
     function getRemoteObjectKind(item) {
       const raw = `${item && item.name ? item.name : ""} ${item && item.type ? item.type : ""}`.toLowerCase();
       if (/(lamp|lampe|light|eclair|luminaire)/.test(raw)) return "lamp";
@@ -1306,6 +1312,7 @@
       const itemName = item.name || tr("objects_all", "Objet");
       const itemType = item.type || "-";
       const room = getRoomName(item);
+      const canOpenPlan = room && room !== "-";
       const takenAt = formatDate(item.taken_at);
       const plannedReturn = formatDate(item.planned_return_at);
       const plannedDuration = formatDurationMinutes(item.planned_duration_minutes);
@@ -1422,6 +1429,13 @@
                 <span>${sanitize(tr("table_taken_on", "Pris le"))}</span>
                 <strong>${sanitize(takenAt)}</strong>
               </div>
+              ${canOpenPlan ? `
+              <div class="feature-info-item" style="grid-column: 1 / -1; display: flex; justify-content: center; margin-top: 6px;">
+                <button type="button" onclick="openObjectLocationPlan('${sanitize(room)}')" class="lamp-action-btn" style="min-width: 190px; justify-content: center; background: linear-gradient(135deg, #16a34a, #0f766e); color: #ffffff; border: 1px solid rgba(22, 163, 74, 0.35); box-shadow: 0 10px 24px rgba(16, 185, 129, 0.22);">
+                  Voir sur le plan
+                </button>
+              </div>
+              ` : ''}
               
             </div>
           </section>

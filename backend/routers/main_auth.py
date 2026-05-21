@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Body, HTTPException, Request
+from fastapi import APIRouter, Body, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from datetime import datetime, timezone
 import httpx
@@ -6,12 +6,14 @@ from typing import Any
 
 from ..base import user_history_collection, notifications_collection, things_collection
 from ..config import resolve_public_base_url
+from ..email_service import send_account_approved_email, send_account_rejected_email
 
 from ..supabase_client import reset_password_email, signup_user, supabase, supabase_admin, delete_user_admin
 from ..notifications_service import create_notification
 
 
 auth_router = APIRouter()
+ADMIN_AUTH_COOKIE = "intellibuild_admin_token"
 
 HISTORY_RETENTION_DAYS = 45
 HISTORY_MAX_ENTRIES_PER_USER = 120
@@ -42,6 +44,11 @@ class UpdateUserRoleRequest(BaseModel):
 
 class UpdateDisplayNameRequest(BaseModel):
     display_name: str = Field(..., min_length=1, max_length=160)
+
+
+class UpdateApprovalRequest(BaseModel):
+    status: str = Field(..., min_length=3, max_length=12)
+    reason: str = Field(default="", max_length=300)
 
 
 class AddFavoriteRequest(BaseModel):
@@ -285,6 +292,7 @@ def _ensure_user_profile_row(user_id: str, email: str = "", role: str = "user", 
         "email": str(email or (auth_row or {}).get("email", "") or "").strip().lower(),
         "role": str(role or (auth_row or {}).get("role", "") or "user").strip().lower() or "user",
         "localisation": None,
+        "approval_status": "pending",
     }
 
     try:
@@ -298,7 +306,8 @@ def _ensure_user_profile_row(user_id: str, email: str = "", role: str = "user", 
 def extract_bearer_token(request: Request) -> str | None:
     header = request.headers.get("Authorization", "")
     if not header.startswith("Bearer "):
-        return None
+        cookie_token = str(request.cookies.get(ADMIN_AUTH_COOKIE, "") or "").strip()
+        return cookie_token or None
     return header.replace("Bearer ", "", 1).strip() or None
 
 
@@ -613,7 +622,7 @@ def _summarize_user_borrowed_objects(user_ids: list[str]) -> dict[str, list[dict
 
 
 @auth_router.post("/login")
-def login(data: LoginRequest = Body(...)):
+def login(data: LoginRequest = Body(...), response: Response = None):
     email = data.email.strip().lower()
     if "@" not in email:
         raise HTTPException(status_code=400, detail="Email invalide")
@@ -632,6 +641,12 @@ def login(data: LoginRequest = Body(...)):
                 user_role = query.data.get("role", "user")
                 display_name = _display_name_from_profile(email, query.data)
                 user_localisation = query.data.get("localisation")
+                approval_status = str(query.data.get("approval_status", "approved") or "approved").strip().lower()
+                if approval_status != "approved":
+                    label = "refuse" if approval_status == "rejected" else "en attente"
+                    raise HTTPException(status_code=403, detail=f"Compte {label}. Veuillez contacter l'administration.")
+        except HTTPException:
+            raise
         except Exception as e:
             print(f"Erreur lecture role: {e}")
 
@@ -664,6 +679,16 @@ def login(data: LoginRequest = Body(...)):
             _prune_user_history(str(auth_res.user.id))
         except Exception as e:
             print(f"Erreur historique login: {e}")
+
+        if response is not None:
+            response.set_cookie(
+                key=ADMIN_AUTH_COOKIE,
+                value=auth_res.session.access_token,
+                httponly=True,
+                samesite="lax",
+                secure=False,
+                path="/",
+            )
 
         return {
             "access_token": auth_res.session.access_token,
@@ -930,6 +955,10 @@ def get_admin_users(request: Request):
                 "created_at": str(item.get("created_at", "") or ""),
                 "email_confirmed_at": str(item.get("email_confirmed_at", "") or ""),
                 "last_sign_in_at": str(item.get("last_sign_in_at", "") or ""),
+                "approval_status": str(item.get("approval_status", "pending") or "pending"),
+                "approved_at": str(item.get("approved_at", "") or ""),
+                "rejected_at": str(item.get("rejected_at", "") or ""),
+                "rejection_reason": str(item.get("rejection_reason", "") or ""),
             }
         )
 
@@ -1065,6 +1094,79 @@ def update_admin_user_role(target_user_id: str, request: Request, data: UpdateUs
     }
 
 
+@auth_router.patch("/admin/users/{target_user_id}/approval")
+def update_admin_user_approval(target_user_id: str, request: Request, data: UpdateApprovalRequest = Body(...)):
+    require_admin(request)
+    actor = _get_authenticated_user(request)
+    actor_id = str(actor.id)
+    safe_target_user_id = str(target_user_id or "").strip()
+    status = str(data.status or "").strip().lower()
+    reason = str(data.reason or "").strip()
+    if status not in {"approved", "rejected", "pending"}:
+        raise HTTPException(status_code=400, detail="Statut invalide")
+    if not safe_target_user_id:
+        raise HTTPException(status_code=400, detail="Utilisateur cible manquant")
+
+    row = _get_user_profile_row(safe_target_user_id)
+    auth_row = _get_auth_user_row(safe_target_user_id)
+    if not row and not auth_row:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable")
+    if not row:
+        row = _ensure_user_profile_row(
+            safe_target_user_id,
+            email=str((auth_row or {}).get("email", "") or ""),
+            role=str((auth_row or {}).get("role", "") or "user"),
+            auth_row=auth_row,
+        )
+        if not row:
+            raise HTTPException(status_code=500, detail="Impossible de preparer le profil utilisateur")
+
+    now = datetime.now(timezone.utc).isoformat()
+    payload: dict[str, Any] = {"approval_status": status}
+
+    try:
+        _profile_table().update(payload).eq("id", safe_target_user_id).execute()
+    except Exception as e:
+        print(f"Erreur update approval utilisateur '{safe_target_user_id}': {e}")
+        raise HTTPException(status_code=500, detail="Impossible de mettre a jour l'approbation utilisateur")
+
+    updated_row = _get_user_profile_row(safe_target_user_id)
+    recipient_email = str(updated_row.get("email", "") or row.get("email", "") or "")
+    display_name = _display_name_from_profile(recipient_email, updated_row)
+
+    try:
+        action = "Validation compte" if status == "approved" else "Refus compte" if status == "rejected" else "Mise en attente"
+        user_history_collection.insert_one(
+            {
+                "user_id": safe_target_user_id,
+                "email": recipient_email,
+                "action": f"Admin - {action}",
+                "detail": reason or "",
+                "status": "Succes",
+                "date": datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M:%S"),
+                "created_at": now,
+            }
+        )
+        _prune_user_history(safe_target_user_id)
+    except Exception as e:
+        print(f"Erreur historique approval: {e}")
+
+    if recipient_email:
+        login_url = f"{resolve_public_base_url(str(request.base_url))}/login.html"
+        if status == "approved":
+            send_account_approved_email(recipient_email, login_url)
+        elif status == "rejected":
+            send_account_rejected_email(recipient_email, reason or None)
+
+    return {
+        "success": True,
+        "id": safe_target_user_id,
+        "email": recipient_email,
+        "display_name": display_name,
+        "approval_status": status,
+    }
+
+
 @auth_router.delete("/admin/users/{target_user_id}")
 def delete_admin_user(target_user_id: str, request: Request):
     require_admin(request)
@@ -1086,22 +1188,21 @@ def delete_admin_user(target_user_id: str, request: Request):
 
     auth_deleted = False
     auth_error = ""
-    if auth_row:
-        try:
-            ok, err = delete_user_admin(safe_target_user_id)
-            auth_deleted = bool(ok)
-            auth_error = str(err or "").strip()
-            if not ok:
-                print(f"delete_user_admin returned error: {err}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Suppression Supabase Auth impossible: {auth_error or 'erreur inconnue'}",
-                )
-        except HTTPException:
-            raise
-        except Exception as e:
-            print(f"Erreur suppression auth supabase: {e}")
-            raise HTTPException(status_code=500, detail=f"Suppression Supabase Auth impossible: {e}")
+    try:
+        ok, err = delete_user_admin(safe_target_user_id)
+        auth_deleted = bool(ok)
+        auth_error = str(err or "").strip()
+        if not ok:
+            print(f"delete_user_admin returned error: {err}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Suppression Supabase Auth impossible: {auth_error or 'erreur inconnue'}",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Erreur suppression auth supabase: {e}")
+        raise HTTPException(status_code=500, detail=f"Suppression Supabase Auth impossible: {e}")
 
     profile_deleted = False
     if row:

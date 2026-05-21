@@ -1,14 +1,14 @@
 import time
 from threading import Thread
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.base import keyword_index_collection, things_collection
 from backend.config import FRONTEND_DIR, FRONTEND_ORIGINS, HOME_PAGE
-from backend.routers.main_auth import auth_router
+from backend.routers.main_auth import auth_router, extract_bearer_token, get_role_from_token
 from backend.routers.main_borrow import borrow_router
 from backend.routers.main_crud import crud_router
 from backend.routers.main_devices import devices_router
@@ -21,6 +21,15 @@ from backend.routers.main_wot import wot_router
 
 app = FastAPI(title="IntelliBuild")
 cleanup_thread: Thread | None = None
+ADMIN_FRONTEND_PAGES = {
+    "index.html",
+    "ajouter-objet.html",
+    "objets.html",
+    "localisations.html",
+    "parametres.html",
+    "admin-users.html",
+    "notifications-admin.html",
+}
 
 
 def _cleanup_orphan_keywords_on_startup() -> None:
@@ -128,6 +137,25 @@ def _start_cleanup_thread() -> None:
     cleanup_thread.start()
 
 
+def _serve_admin_page(request: Request, filename: str):
+    token = extract_bearer_token(request)
+    if not token:
+        return RedirectResponse(url="/login.html", status_code=302)
+
+    try:
+        role = get_role_from_token(token).strip().lower()
+    except HTTPException:
+        return RedirectResponse(url="/login.html", status_code=302)
+
+    if role != "admin":
+        return RedirectResponse(url="/user.html", status_code=302)
+
+    file_path = FRONTEND_DIR / filename
+    if file_path.exists():
+        return FileResponse(file_path)
+    raise HTTPException(status_code=404, detail="Page introuvable")
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=FRONTEND_ORIGINS,
@@ -158,6 +186,41 @@ def on_startup() -> None:
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "app": "intellibuild"}
+
+
+@app.get("/index.html", include_in_schema=False)
+def admin_index_page(request: Request):
+    return _serve_admin_page(request, "index.html")
+
+
+@app.get("/ajouter-objet.html", include_in_schema=False)
+def admin_add_object_page(request: Request):
+    return _serve_admin_page(request, "ajouter-objet.html")
+
+
+@app.get("/objets.html", include_in_schema=False)
+def admin_objects_page(request: Request):
+    return _serve_admin_page(request, "objets.html")
+
+
+@app.get("/localisations.html", include_in_schema=False)
+def admin_localisations_page(request: Request):
+    return _serve_admin_page(request, "localisations.html")
+
+
+@app.get("/parametres.html", include_in_schema=False)
+def admin_settings_page(request: Request):
+    return _serve_admin_page(request, "parametres.html")
+
+
+@app.get("/admin-users.html", include_in_schema=False)
+def admin_users_page(request: Request):
+    return _serve_admin_page(request, "admin-users.html")
+
+
+@app.get("/notifications-admin.html", include_in_schema=False)
+def admin_notifications_page(request: Request):
+    return _serve_admin_page(request, "notifications-admin.html")
 
 
 @app.get("/", include_in_schema=False)

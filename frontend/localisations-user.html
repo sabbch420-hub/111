@@ -771,6 +771,20 @@
             }
         }
 
+        function focusRoomOnPlan(room) {
+            const label = canonicalRoomLabel(room) || '';
+            if (!label) return;
+
+            updateCurrentRoomDisplays(label);
+
+            const matchedFloor = findFloorDataByRoom(label);
+            if (matchedFloor) {
+                window.requestAnimationFrame(function () {
+                    scrollToFloorById(matchedFloor.id);
+                });
+            }
+        }
+
         function showPosToast(message) {
             posToast.textContent = message;
             posToast.classList.add('show');
@@ -1265,6 +1279,11 @@
             }
             updateCurrentRoomDisplays(currentRoom);
             populateQuickSelectors(currentRoom);
+
+            const focusRoom = canonicalRoomLabel(new URLSearchParams(window.location.search).get('room') || '');
+            if (focusRoom) {
+                focusRoomOnPlan(focusRoom);
+            }
 
             quickFloorSelect.addEventListener('change', function () {
                 updateQuickRoomOptions('');

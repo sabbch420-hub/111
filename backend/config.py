@@ -23,6 +23,13 @@ SUPABASE_SERVICE_ROLE = (
 )
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").strip().rstrip("/")
 WOT_TD_CATALOG_URL = os.getenv("WOT_TD_CATALOG_URL", "").strip().rstrip("/")
+SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587") or 587)
+SMTP_USER = os.getenv("SMTP_USER", "").strip()
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "").strip()
+SMTP_FROM = os.getenv("SMTP_FROM", "").strip() or SMTP_USER
+SMTP_TLS = os.getenv("SMTP_TLS", "true").strip().lower() in {"1", "true", "yes", "on"}
+SMTP_ENABLED = os.getenv("SMTP_ENABLED", "true").strip().lower() in {"1", "true", "yes", "on"}
 
 try:
     WOT_CATALOG_TIMEOUT_SECONDS = float(os.getenv("WOT_CATALOG_TIMEOUT_SECONDS", "1.2"))

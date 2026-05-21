@@ -9,22 +9,14 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="theme.css">
   <link rel="stylesheet" href="layout.css">
+  <script src="admin-access-guard.js"></script>
   <script data-theme-role-script>
     (function () {
       var path = (window.location.pathname.split('/').pop() || '').toLowerCase();
       var page = path.replace('.html', '') || 'home';
       document.documentElement.setAttribute('data-page', page);
 
-      var role = (localStorage.getItem('userRole') || '').toLowerCase();
-      if (!role) {
-        if (page.indexOf('admin') >= 0 || ['index','ajouter-objet','objets','localisations','parametres','admin-users'].indexOf(page) >= 0) {
-          role = 'admin';
-        } else if (page.indexOf('user') >= 0 || ['user','mesobjet','localisations-user','parametres-user'].indexOf(page) >= 0) {
-          role = 'user';
-        } else {
-          role = 'guest';
-        }
-      }
+      var role = (localStorage.getItem('userRole') || '').toLowerCase() || 'guest';
       document.documentElement.setAttribute('data-role', role);
     })();
   </script>
@@ -352,6 +344,24 @@
       border-color: rgba(148, 163, 184, 0.22);
     }
 
+    .pill.approved {
+      background: rgba(34, 197, 94, 0.12);
+      color: #166534;
+      border-color: rgba(34, 197, 94, 0.2);
+    }
+
+    .pill.rejected {
+      background: rgba(239, 68, 68, 0.12);
+      color: #991b1b;
+      border-color: rgba(239, 68, 68, 0.2);
+    }
+
+    .pill.pending {
+      background: rgba(245, 158, 11, 0.14);
+      color: #92400e;
+      border-color: rgba(245, 158, 11, 0.2);
+    }
+
     .row-actions {
       display: flex;
       flex-wrap: wrap;
@@ -617,6 +627,7 @@
                 <th>Rôle</th>
                 <th>Favoris</th>
                 <th>Signalements</th>
+                <th>Statut</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -786,6 +797,10 @@
             display_name: formatText(item.display_name, formatText(item.email, 'Utilisateur')),
             email: formatText(item.email),
             role: String(item.role || 'user').toLowerCase(),
+            approval_status: String(item.approval_status || 'pending').toLowerCase(),
+            approved_at: formatText(item.approved_at, ''),
+            rejected_at: formatText(item.rejected_at, ''),
+            rejection_reason: formatText(item.rejection_reason, ''),
             favorites_count: Number(item.favorites_count || favorites.length || 0),
             favorites: favorites,
             report_count: Number(item.report_count || reportItems.length || 0),
@@ -817,6 +832,20 @@
 
       function renderAdminAwareCount(user, value) {
         return user.role === 'admin' ? '—' : String(value);
+      }
+
+      function renderApprovalPill(value) {
+        const normalized = String(value || 'pending').toLowerCase();
+        let label = 'En attente';
+        let css = 'pending';
+        if (normalized === 'approved') {
+          label = 'Approuve';
+          css = 'approved';
+        } else if (normalized === 'rejected') {
+          label = 'Refuse';
+          css = 'rejected';
+        }
+        return `<span class="pill ${css}">${label}</span>`;
       }
 
       function formatCompactId(value) {
@@ -899,9 +928,11 @@
               <td>${renderPill(user.role)}</td>
               <td><strong>${renderAdminAwareCount(user, user.favorites_count)}</strong></td>
               <td><strong>${renderAdminAwareCount(user, user.report_count)}</strong></td>
+              <td>${user.role === 'admin' ? '—' : renderApprovalPill(user.approval_status)}</td>
               <td>
-
                 <div class="row-actions">
+                  ${user.role !== 'admin' && user.approval_status !== 'approved' ? `<button class="button button-primary" type="button" data-user-approve="${escapeHtml(user.id)}">Approuver</button>` : ''}
+                  ${user.role !== 'admin' && user.approval_status !== 'rejected' ? `<button class="button button-secondary" type="button" data-user-reject="${escapeHtml(user.id)}">Refuser</button>` : ''}
                   <button class="button button-secondary" type="button" data-user-edit="${escapeHtml(user.id)}">Modifier</button>
                   <button class="button button-secondary" type="button" data-user-details="${escapeHtml(user.id)}">Détails</button>
                   <button class="button button-secondary" type="button" data-user-delete="${escapeHtml(user.id)}">Supprimer</button>
@@ -1056,6 +1087,23 @@
         }
       }
 
+      async function updateUserApproval(user, nextStatus, reason) {
+        const status = String(nextStatus || '').toLowerCase();
+        const label = status === 'approved' ? 'approuver' : status === 'rejected' ? 'refuser' : 'mettre en attente';
+        const ok = await confirmDialog(`Confirmer l'action '${label}' pour ${user.email} ?`);
+        if (!ok) return;
+
+        const response = await fetch(`${apiBase}/admin/users/${encodeURIComponent(user.id)}/approval`, {
+          method: 'PATCH',
+          headers: authHeaders(),
+          body: JSON.stringify({ status: status, reason: reason || '' })
+        });
+        const payload = await response.json().catch(function () { return {}; });
+        if (!response.ok) {
+          throw new Error(String(payload.detail || 'Impossible de changer le statut.'));
+        }
+      }
+
       async function deleteUser(user) {
         const currentUserId = String(localStorage.getItem('userId') || '').trim();
         if (currentUserId && currentUserId === user.id) {
@@ -1140,6 +1188,7 @@
             <div class="detail-card"><p class="detail-label">ID</p><p class="detail-value"><span class="detail-id mono">${escapeHtml(user.id)}</span></p></div>
             <div class="detail-card"><p class="detail-label">Email</p><p class="detail-value">${escapeHtml(user.email)}</p></div>
             <div class="detail-card"><p class="detail-label">Rôle</p><p class="detail-value">${renderPill(user.role)}</p></div>
+            ${user.role === 'admin' ? '' : `<div class="detail-card"><p class="detail-label">Statut compte</p><p class="detail-value">${renderApprovalPill(user.approval_status)}</p></div>`}
             ${user.role === 'admin' ? '' : `<div class="detail-card"><p class="detail-label">Favoris</p><p class="detail-value">${user.favorites_count}</p></div>`}
             ${user.role === 'admin' ? '' : `<div class="detail-card"><p class="detail-label">Signalements</p><p class="detail-value">${user.report_count}</p></div>`}
             ${user.role === 'admin' ? '' : `<div class="detail-card"><p class="detail-label">Objets en cours</p><p class="detail-value">${user.borrowed_count || borrowedObjects.length}</p></div>`}
@@ -1172,7 +1221,7 @@
       }
 
       async function loadUsers() {
-        usersBody.innerHTML = '<tr><td colspan="7" class="muted" style="padding:20px;">Chargement...</td></tr>';
+        usersBody.innerHTML = '<tr><td colspan="8" class="muted" style="padding:20px;">Chargement...</td></tr>';
         emptyState.hidden = true;
 
         try {
@@ -1220,13 +1269,17 @@
         const button = event.target.closest('[data-user-details]');
         const editButton = event.target.closest('[data-user-edit]');
         const deleteButton = event.target.closest('[data-user-delete]');
+        const approveButton = event.target.closest('[data-user-approve]');
+        const rejectButton = event.target.closest('[data-user-reject]');
         const detailsButton = button;
 
-        if (!(editButton || deleteButton || detailsButton)) return;
+        if (!(editButton || deleteButton || detailsButton || approveButton || rejectButton)) return;
 
         const userId = String(
           (editButton && editButton.getAttribute('data-user-edit'))
           || (deleteButton && deleteButton.getAttribute('data-user-delete'))
+          || (approveButton && approveButton.getAttribute('data-user-approve'))
+          || (rejectButton && rejectButton.getAttribute('data-user-reject'))
           || (detailsButton && detailsButton.getAttribute('data-user-details'))
           || ''
         ).trim();
@@ -1240,6 +1293,21 @@
 
         if (editButton) {
           openEditOverlay(user);
+          return;
+        }
+
+        if (approveButton) {
+          updateUserApproval(user, 'approved')
+            .then(function () { return loadUsers(); })
+            .catch(function (error) { window.alert(String(error && error.message ? error.message : 'Erreur validation utilisateur.')); });
+          return;
+        }
+
+        if (rejectButton) {
+          const reason = window.prompt('Motif du refus (optionnel):', '') || '';
+          updateUserApproval(user, 'rejected', reason)
+            .then(function () { return loadUsers(); })
+            .catch(function (error) { window.alert(String(error && error.message ? error.message : 'Erreur refus utilisateur.')); });
           return;
         }
 

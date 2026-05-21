@@ -70,10 +70,10 @@
     </style>
     <link rel="stylesheet" href="theme.css">
     <link rel="stylesheet" href="layout.css">
-    <script data-theme-role-script>(function(){var p=(window.location.pathname.split('/').pop()||'').toLowerCase();var g=p.replace('.html','')||'home';document.documentElement.setAttribute('data-page',g);var r=(localStorage.getItem('userRole')||'').toLowerCase();if(!r){if(g.indexOf('admin')>=0||['index','ajouter-objet','objets','localisations','parametres'].indexOf(g)>=0)r='admin';else if(g.indexOf('user')>=0||['user','mesobjet','localisations-user','parametres-user'].indexOf(g)>=0)r='user';else r='guest';}document.documentElement.setAttribute('data-role',r);})();</script>
+    <script src="admin-access-guard.js"></script>
+    <script data-theme-role-script>(function(){var p=(window.location.pathname.split('/').pop()||'').toLowerCase();var g=p.replace('.html','')||'home';document.documentElement.setAttribute('data-page',g);var r=(localStorage.getItem('userRole')||'').toLowerCase()||'guest';document.documentElement.setAttribute('data-role',r);})();</script>
 </head>
 <body class="flex">
-    <script>if(!localStorage.getItem('userToken'))window.location.href='login.html';</script>
     <script src="sidebar-loader.js?v=20260501-favorites-fix2"></script>
 
     <main class="flex-1" style="padding:32px">

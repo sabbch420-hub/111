@@ -305,6 +305,8 @@
 
         function buildDetailOverlayHtml(details) {
             const currentBorrow = details.currentBorrow && typeof details.currentBorrow === 'object' ? details.currentBorrow : null;
+            const locationLabel = String(details.location || '').trim();
+            const canOpenPlan = locationLabel && locationLabel !== '-' && locationLabel.toUpperCase() !== 'N/A';
             const reactivateAction = details.canReactivate && details.id
                 ? `
                     <div class="md:col-span-2 flex justify-end">
@@ -334,6 +336,13 @@
                         <div class="bg-white/90 rounded-xl p-4 border border-slate-200"><p class="text-slate-500 font-semibold">Localisation</p><p class="font-bold text-slate-800 mt-1">${escapeHtml(details.location || '-')}</p></div>
                         <div class="bg-white/90 rounded-xl p-4 border border-slate-200"><p class="text-slate-500 font-semibold">Statut</p><p class="font-bold text-slate-800 mt-1">${escapeHtml(details.status || '-')}</p></div>
                         <div class="md:col-span-2 bg-white/90 rounded-xl p-4 border border-slate-200"><p class="text-slate-500 font-semibold">Description</p><p class="font-bold text-slate-800 mt-1">${escapeHtml(details.description || '-')}</p></div>
+                        ${canOpenPlan ? `
+                        <div class="md:col-span-2 flex justify-end">
+                            <button type="button" onclick="openObjectLocationPlan('${escapeHtml(locationLabel)}')" class="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-emerald-700 transition">
+                                Voir sur le plan
+                            </button>
+                        </div>
+                        ` : ''}
                         ${borrowSection}
                         ${reactivateAction}
                     </div>
@@ -496,6 +505,12 @@
                 if (ch === '"') return '&quot;';
                 return '&#39;';
             });
+        }
+
+        function openObjectLocationPlan(roomName) {
+            const room = String(roomName || '').trim();
+            if (!room) return;
+            window.location.href = `localisations.html?room=${encodeURIComponent(room)}`;
         }
 
         function formatDateTime(value) {

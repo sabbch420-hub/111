@@ -160,7 +160,7 @@
   function addH(a,d,s){ const t=localStorage.getItem('userToken'); if(t) fetch(`${apiBase}/admin/history`,{method:'POST',headers:authHeaders(),body:JSON.stringify({action:a,detail:d,status:s||'Succes'})}).catch(()=>{}); }
 
   async function loadProfile(){
-    try{ const r=await fetch(`${apiBase}/user/profile`,{headers:authHeaders()}); if(!r.ok)return; const p=await r.json(); adminProfileData=p; if(String(p.role||'').toLowerCase()&&String(p.role||'').toLowerCase()!=='admin'){window.location.href='user.html';return;} const em=String(p.email||localStorage.getItem('userEmail')||'admin@intellibuild.com'); const disp=String(localStorage.getItem('adminDisplayName')||'').trim()||String(p.display_name||'').trim()||em.split('@')[0]||'Admin'; localStorage.setItem('userRole','admin'); localStorage.setItem('userEmail',em); localStorage.setItem('adminDisplayName',disp); applyName(disp); }catch(e){console.error('Profil:',e);}
+    try{ const r=await fetch(`${apiBase}/user/profile`,{headers:authHeaders()}); if(!r.ok) throw new Error(`profile_${r.status}`); const p=await r.json(); adminProfileData=p; if(String(p.role||'').toLowerCase()&&String(p.role||'').toLowerCase()!=='admin'){window.location.href='user.html';return;} const em=String(p.email||localStorage.getItem('userEmail')||'admin@intellibuild.com'); const disp=String(localStorage.getItem('adminDisplayName')||'').trim()||String(p.display_name||'').trim()||em.split('@')[0]||'Admin'; localStorage.setItem('userRole','admin'); localStorage.setItem('userEmail',em); localStorage.setItem('adminDisplayName',disp); applyName(disp); }catch(e){console.error('Profil:',e); localStorage.removeItem('userRole'); window.location.href='login.html';}
   }
 
   function anim(elm,start,end,dur){

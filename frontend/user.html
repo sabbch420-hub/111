@@ -1595,6 +1595,12 @@ function closeOverlay() {
   document.body.style.overflow = "";
 }
 
+function openObjectLocationPlan(roomName) {
+  const room = String(roomName || "").trim();
+  if (!room || room === "-" || room.toUpperCase() === "N/A") return;
+  window.location.href = `localisations-user.html?room=${encodeURIComponent(room)}`;
+}
+
 function showAppToast(message, type = "info", title) {
   if (!appToast || !appToastText || !appToastTitle) return;
   if (appToastTimer) {
@@ -2282,6 +2288,14 @@ function openObjectDecision(row) {
             <span class="detail-label">Etage</span>
             <span class="detail-value">${sanitizeText(selectedObjectDetails.floorLabel || "-")}</span>
           </div>
+
+          ${String(selectedObjectDetails.location || "").trim() && String(selectedObjectDetails.location || "").trim() !== "-" ? `
+          <div class="detail-row" style="grid-column: 1 / -1; display: flex; justify-content: center; margin-top: 6px;">
+            <button type="button" onclick="openObjectLocationPlan('${sanitizeText(selectedObjectDetails.location || "").replace(/'/g, "&apos;") }')" class="object-action-btn" style="min-width: 190px; justify-content: center; background: linear-gradient(135deg, #16a34a, #0f766e); color: #ffffff; border: 1px solid rgba(22, 163, 74, 0.35); box-shadow: 0 10px 24px rgba(16, 185, 129, 0.22);">
+              Voir sur le plan
+            </button>
+          </div>
+          ` : ""}
         </div>
 
         <div class="detail-row">

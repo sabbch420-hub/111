@@ -9,22 +9,14 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <link rel="stylesheet" href="theme.css">
   <link rel="stylesheet" href="layout.css">
+  <script src="admin-access-guard.js"></script>
   <script data-theme-role-script>
     (function () {
       var path = (window.location.pathname.split('/').pop() || '').toLowerCase();
       var page = path.replace('.html', '') || 'home';
       document.documentElement.setAttribute('data-page', page);
 
-      var role = (localStorage.getItem('userRole') || '').toLowerCase();
-      if (!role) {
-        if (page.indexOf('admin') >= 0 || ['index','ajouter-objet','objets','localisations','parametres'].indexOf(page) >= 0) {
-          role = 'admin';
-        } else if (page.indexOf('user') >= 0 || ['user','mesobjet','localisations-user','parametres-user'].indexOf(page) >= 0) {
-          role = 'user';
-        } else {
-          role = 'guest';
-        }
-      }
+      var role = (localStorage.getItem('userRole') || '').toLowerCase() || 'guest';
       document.documentElement.setAttribute('data-role', role);
     })();
   </script>

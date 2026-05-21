@@ -6,6 +6,7 @@
   <title data-key="notifications_admin_doc_title">Notifications Admin - IntelliBuild</title>
   <script src="config.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <script src="admin-access-guard.js"></script>
   <style>
     :root {
       --bg-1: #0b1220;
@@ -345,16 +346,7 @@
       var page = path.replace('.html', '') || 'home';
       document.documentElement.setAttribute('data-page', page);
 
-      var role = (localStorage.getItem('userRole') || '').toLowerCase();
-      if (!role) {
-        if (page.indexOf('admin') >= 0 || ['index','ajouter-objet','objets','localisations','parametres'].indexOf(page) >= 0) {
-          role = 'admin';
-        } else if (page.indexOf('user') >= 0 || ['user','mesobjet','localisations-user','parametres-user'].indexOf(page) >= 0) {
-          role = 'user';
-        } else {
-          role = 'guest';
-        }
-      }
+      var role = (localStorage.getItem('userRole') || '').toLowerCase() || 'guest';
       document.documentElement.setAttribute('data-role', role);
     })();
   </script></head>
