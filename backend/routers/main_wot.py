@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 import uuid
+from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import quote
@@ -27,6 +29,42 @@ class AddThingFromTdRequest(BaseModel):
     room: str = Field(..., min_length=1, max_length=120)
     floor: str = Field(default="", max_length=120)
     custom_type: str = Field(default="", max_length=80)
+    network_reference: str = Field(default="", max_length=300)
+
+
+def _normalize_network_reference(value: str) -> str:
+    clean = str(value or "").strip()
+    if not clean:
+        return ""
+    if re.match(r"^https?://", clean, flags=re.IGNORECASE):
+        return clean.rstrip("/")
+    if re.match(r"^([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}$", clean):
+        return clean
+    if re.match(r"^(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?$", clean):
+        return f"http://{clean}".rstrip("/")
+    if "://" not in clean and "/" not in clean and " " not in clean:
+        return f"http://{clean}".rstrip("/")
+    return clean
+
+
+def _http_endpoint_from_reference(value: str) -> str:
+    clean = _normalize_network_reference(value)
+    if re.match(r"^https?://", clean, flags=re.IGNORECASE):
+        return clean.rstrip("/")
+    return ""
+
+
+def _sanitize_td_for_storage(value: Any) -> Any:
+    if isinstance(value, dict):
+        sanitized: dict[str, Any] = {}
+        for key, sub_value in value.items():
+            if key == "href":
+                continue
+            sanitized[key] = _sanitize_td_for_storage(sub_value)
+        return sanitized
+    if isinstance(value, list):
+        return [_sanitize_td_for_storage(item) for item in value]
+    return deepcopy(value)
 
 
 def _catalog_base_url() -> str:
@@ -167,9 +205,10 @@ def _first_form(entry: Any) -> dict[str, Any]:
     return {}
 
 
-def _build_potential_actions_from_td(td: dict[str, Any]) -> list[dict[str, Any]]:
+def _build_potential_actions_from_td(td: dict[str, Any], network_reference: str = "") -> list[dict[str, Any]]:
     actions = td.get("actions") if isinstance(td.get("actions"), dict) else {}
     result: list[dict[str, Any]] = []
+    endpoint = _http_endpoint_from_reference(network_reference)
 
     for action_name, action_spec in actions.items():
         safe_name = str(action_name or "").strip()
@@ -177,9 +216,15 @@ def _build_potential_actions_from_td(td: dict[str, Any]) -> list[dict[str, Any]]
             continue
 
         form = _first_form(action_spec)
+        href = str(form.get("href") or "").strip()
+        if endpoint:
+            href = f"{endpoint}/actions/{quote(safe_name, safe='')}"
+        if not href:
+            continue
+
         target = {
             "@type": "EntryPoint",
-            "urlTemplate": str(form.get("href") or "").strip(),
+            "urlTemplate": href,
             "httpMethod": str(form.get("htv:methodName") or form.get("method") or "POST").strip().upper(),
             "contentType": str(form.get("contentType") or "application/json").strip(),
         }
@@ -195,15 +240,67 @@ def _build_potential_actions_from_td(td: dict[str, Any]) -> list[dict[str, Any]]
     return result
 
 
-def _build_control_from_td(td: dict[str, Any], simulated: bool = False) -> dict[str, Any] | None:
+def _build_control_from_td(td: dict[str, Any], network_reference: str = "", simulated: bool = False) -> dict[str, Any] | None:
     actions = td.get("actions") if isinstance(td.get("actions"), dict) else {}
     properties = td.get("properties") if isinstance(td.get("properties"), dict) else {}
     if not actions and not properties:
         return None
 
+    endpoint = _http_endpoint_from_reference(network_reference)
     control_actions: dict[str, dict[str, Any]] = {}
     control_properties: dict[str, dict[str, Any]] = {}
     first_href = ""
+
+    if endpoint:
+        for action_name, action_spec in actions.items():
+            safe_name = str(action_name or "").strip()
+            if not safe_name:
+                continue
+
+            form = _first_form(action_spec)
+            method = str(form.get("htv:methodName") or form.get("method") or "POST").strip().upper()
+            action_entry = {
+                "method": method,
+                "href": f"{endpoint}/actions/{quote(safe_name, safe='')}",
+                "label": safe_name,
+                "description": str(action_spec.get("description") or "").strip() if isinstance(action_spec, dict) else "",
+                "contentType": str(form.get("contentType") or "application/json").strip(),
+            }
+            if isinstance(action_spec, dict) and isinstance(action_spec.get("input"), dict):
+                action_entry["input"] = action_spec["input"]
+            control_actions[safe_name.lower()] = action_entry
+
+        for prop_name, prop_spec in properties.items():
+            safe_name = str(prop_name or "").strip()
+            if not safe_name:
+                continue
+
+            form = _first_form(prop_spec)
+            method = str(form.get("htv:methodName") or form.get("method") or "GET").strip().upper()
+            control_properties[safe_name.lower()] = {
+                "method": method,
+                "href": f"{endpoint}/properties/{quote(safe_name, safe='')}",
+                "label": safe_name,
+                "contentType": str(form.get("contentType") or "application/json").strip(),
+            }
+
+        if not control_actions and not control_properties:
+            return None
+
+        status_href = f"{endpoint}/health"
+
+        return {
+            "@type": "EntryPoint",
+            "name": "WoT TD Control",
+            "protocol": "WoT/HTTP",
+            "contentType": "application/json",
+            "endpoint": endpoint,
+            "health": status_href,
+            "simulated": bool(simulated),
+            "actions": control_actions,
+            "properties": control_properties,
+        }
+
     for action_name, action_spec in actions.items():
         safe_name = str(action_name or "").strip()
         if not safe_name:
@@ -387,6 +484,8 @@ def add_thing_from_td(request: Request, data: AddThingFromTdRequest = Body(...))
     if not safe_name:
         raise HTTPException(status_code=400, detail="Le nom local de l'objet est obligatoire.")
 
+    network_reference = _normalize_network_reference(data.network_reference)
+
     duplicate = _find_thing_with_same_name(safe_name)
     if duplicate:
         duplicate_name = str(duplicate.get("name") or safe_name).strip() or safe_name
@@ -409,6 +508,7 @@ def add_thing_from_td(request: Request, data: AddThingFromTdRequest = Body(...))
     events = _list_names(td.get("events"))
     thing_type = str(summary.get("type") or "Objet IoT").strip() or "Objet IoT"
     description = str(summary.get("description") or td.get("description") or "").strip()
+    sanitized_td = _sanitize_td_for_storage(td)
 
     td_summary = {
         "td_id": str(summary.get("td_id") or data.td_id).strip(),
@@ -445,15 +545,18 @@ def add_thing_from_td(request: Request, data: AddThingFromTdRequest = Body(...))
             "y": coords["y"],
             "z": coords["z"],
         },
-        "thingDescription": td,
+        "thingDescription": sanitized_td,
         "td_summary": td_summary,
     }
 
-    potential_actions = _build_potential_actions_from_td(td)
+    if network_reference:
+        new_item["network_reference"] = network_reference
+
+    potential_actions = _build_potential_actions_from_td(td, network_reference=network_reference)
     if potential_actions:
         new_item["potentialAction"] = potential_actions
 
-    remote_control = _build_control_from_td(td, simulated=td_payload.get("source") == "bundled")
+    remote_control = _build_control_from_td(td, network_reference=network_reference, simulated=td_payload.get("source") == "bundled")
     if remote_control:
         new_item["control"] = remote_control
         new_item["device_state"] = {
@@ -483,4 +586,3 @@ def add_thing_from_td(request: Request, data: AddThingFromTdRequest = Body(...))
     except Exception as exc:
         print(f"Erreur add from TD: {exc}")
         raise HTTPException(status_code=500, detail="Impossible d'ajouter l'objet depuis la Thing Description.")
-        

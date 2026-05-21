@@ -187,6 +187,14 @@
                         </div>
                     </section>
 
+                    <section class="soft-panel p-4 md:p-5">
+                        <div>
+                            <label class="field-label" for="objNetworkReference">Adresse réseau / URL / IP / MAC (optionnel)</label>
+                            <input id="objNetworkReference" type="text" maxlength="300" class="field-input" placeholder="Ex: http://192.168.1.20:3001, 192.168.1.20, AA:BB:CC:DD:EE:FF">
+                            <p class="mt-2 text-xs font-semibold text-slate-500">Laisser vide si l'objet n'a pas d'adresse réelle à configurer.</p>
+                        </div>
+                    </section>
+
                     <div class="flex flex-col sm:flex-row gap-3">
                         <button type="button" id="cancelBtn" class="secondary-btn flex-1">
                             Annuler
@@ -216,6 +224,7 @@
         const objLocalName = document.getElementById('objLocalName');
         const objFloor = document.getElementById('objFloor');
         const objRoom = document.getElementById('objRoom');
+        const objNetworkReference = document.getElementById('objNetworkReference');
 
         let catalogItems = [];
         let customTypes = [];
@@ -515,6 +524,7 @@
             const localName = String(objLocalName.value || '').trim();
             const floor = String(objFloor.value || '').trim();
             const room = String(objRoom.value || '').trim();
+            const networkReference = String(objNetworkReference.value || '').trim();
 
             if (!localName) {
                 alert("Veuillez saisir le nom de l'objet.");
@@ -539,7 +549,8 @@
                     td_id: currentTdId,
                     local_name: localName,
                     floor: floor,
-                    room: room
+                    room: room,
+                    network_reference: networkReference
                 };
                 if (selectedType.custom) {
                     body.custom_type = selectedType.type;
