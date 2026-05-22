@@ -455,7 +455,7 @@
     }
 
     if ((localStorage.getItem("userRole") || "").toLowerCase() !== "admin") {
-      window.location.href = "user.html";
+      window.location.replace("user.html");
     }
 
     const langSelect = document.getElementById("langSelect");
@@ -866,7 +866,7 @@
       localStorage.removeItem("user_x");
       localStorage.removeItem("user_y");
       localStorage.removeItem("user_z");
-      window.location.href = "login.html";
+      window.location.replace("login.html");
     });
 
     function openEditAdmin() { editAdminOverlay.hidden = false; }

@@ -411,7 +411,7 @@
     let adminNotificationsReady = false;
 
     if (!token) window.location.href = "login.html";
-    if (role !== "admin") window.location.href = "user.html";
+    if (role !== "admin") window.location.replace("user.html");
 
     function tr(key, fallback, params) {
       if (window.getTranslationText) return window.getTranslationText(key, fallback, params);

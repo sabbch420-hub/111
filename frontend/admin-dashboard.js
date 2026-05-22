@@ -38,6 +38,10 @@
     const room=String(localStorage.getItem('user_room')||'').trim();
     el.positionDebugText.textContent=room||'Salle inconnue';
   }
+  function refreshCurrentObjectsView(){
+    if (!lastObjectView.query && !lastObjectView.showAll) return;
+    loadObjects(lastObjectView.query, lastObjectView.showAll ? { showAll: true, label: lastObjectView.label } : { label: lastObjectView.label });
+  }
   function norm(v) { return String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim(); }
   function isAvail(v) { const n=norm(v); return n==='active' || n==='disponible'; }
   function isBroken(v) { return ['panne','en panne','maintenance','hors service','hors-service','hors ligne','hors-ligne','broken','out of order','out_of_order','hs'].includes(norm(v)); }
@@ -52,6 +56,20 @@
   }
   function dStatus(i) { return String(i&&i.maintenance_state?i.maintenance_state:'').trim() || String(i&&i.status?i.status:'inconnu'); }
   function canReac(i) { const ds=dStatus(i), cb=i&&typeof i.current_borrow==='object'?i.current_borrow:null; if(cb||norm(ds)==='en_utilisation')return false; if(norm(i&&i.maintenance_state)||isBroken(ds)||isBroken(i&&i.status))return true; if(isAvail(ds)||isAvail(i&&i.status))return false; return false; }
+  function adminSortPriority(item) {
+    const statusValue = dStatus(item);
+    const statusNorm = norm(statusValue);
+    const hasBorrow = item && typeof item.current_borrow === 'object' && item.current_borrow !== null;
+    const isBorrowed = hasBorrow || statusNorm === 'en_utilisation' || statusNorm.includes('borrow');
+    const isBrokenItem = isBroken(statusValue) || isBroken(item && item.status) || norm(item && item.maintenance_state);
+    const isAvailable = isAvail(statusValue) || isAvail(item && item.status);
+
+    if (isAvailable) return 0;
+    if (isBorrowed) return 1;
+    if (isBrokenItem) return 2;
+    if (statusNorm.includes('indisponibl') || statusNorm === 'inactive') return 3;
+    return 4;
+  }
   function gRoom(s) { const l=s&&typeof s==='object'&&Object.prototype.hasOwnProperty.call(s,'location')?s.location:s; if(typeof l==='string')return String(l).trim(); if(!l||typeof l!=='object')return''; return String(l.room||l.name||'').trim(); }
   const FLOOR_BY_ROOM = {
     [norm('Observatoire IA')]: 'Etage 11 - Sky Lab',
@@ -161,7 +179,7 @@
   function addH(a,d,s){ const t=localStorage.getItem('userToken'); if(t) fetch(`${apiBase}/admin/history`,{method:'POST',headers:authHeaders(),body:JSON.stringify({action:a,detail:d,status:s||'Succes'})}).catch(()=>{}); }
 
   async function loadProfile(){
-    try{ const r=await fetch(`${apiBase}/user/profile`,{headers:authHeaders()}); if(!r.ok) throw new Error(`profile_${r.status}`); const p=await r.json(); adminProfileData=p; if(String(p.role||'').toLowerCase()&&String(p.role||'').toLowerCase()!=='admin'){window.location.href='user.html';return;} const em=String(p.email||localStorage.getItem('userEmail')||'admin@intellibuild.com'); const disp=String(localStorage.getItem('adminDisplayName')||'').trim()||String(p.display_name||'').trim()||em.split('@')[0]||'Admin'; localStorage.setItem('userRole','admin'); localStorage.setItem('userEmail',em); localStorage.setItem('adminDisplayName',disp); applyName(disp); }catch(e){console.error('Profil:',e); localStorage.removeItem('userRole'); window.location.href='login.html';}
+    try{ const r=await fetch(`${apiBase}/user/profile`,{headers:authHeaders()}); if(!r.ok) throw new Error(`profile_${r.status}`); const p=await r.json(); adminProfileData=p; if(String(p.role||'').toLowerCase()&&String(p.role||'').toLowerCase()!=='admin'){window.location.replace('user.html');return;} const em=String(p.email||localStorage.getItem('userEmail')||'admin@intellibuild.com'); const disp=String(localStorage.getItem('adminDisplayName')||'').trim()||String(p.display_name||'').trim()||em.split('@')[0]||'Admin'; localStorage.setItem('userRole','admin'); localStorage.setItem('userEmail',em); localStorage.setItem('adminDisplayName',disp); applyName(disp); }catch(e){console.error('Profil:',e); localStorage.removeItem('userRole'); window.location.replace('login.html');}
   }
 
   function anim(elm,start,end,dur){
@@ -302,41 +320,6 @@
     }
   }
 
-  function getDashboardSortPriority(item, query, showAll) {
-    const searchText = norm(query || '');
-    const statusValue = dStatus(item);
-    const hasBorrow = item && typeof item.current_borrow === 'object' && item.current_borrow !== null;
-    const isBorrowed = hasBorrow || norm(statusValue) === 'en_utilisation' || norm(statusValue).includes('borrow');
-    const isBrokenItem = isBroken(statusValue) || isBroken(item && item.status) || norm(item && item.maintenance_state);
-    const isAvailable = isAvail(statusValue) || isAvail(item && item.status);
-
-    if (showAll) {
-      if (isAvailable) return 0;
-      if (isBorrowed) return 1;
-      if (isBrokenItem) return 2;
-      if (isBroken(statusValue) || norm(statusValue).includes('indisponibl')) return 3;
-      return 4;
-    }
-
-    if (searchText.includes('en panne') || searchText.includes('panne') || searchText.includes('maintenance')) {
-      return isBrokenItem ? 0 : 1;
-    }
-
-    if (searchText.includes('en utilisation') || searchText.includes('utilisation') || searchText.includes('borrow')) {
-      return isBorrowed ? 0 : 1;
-    }
-
-    if (searchText === 'disponible' || searchText.includes('disponibl')) {
-      return isAvailable ? 0 : 1;
-    }
-
-    if (searchText === 'indisponible' || searchText.includes('indisponibl')) {
-      return !isAvailable ? 0 : 1;
-    }
-
-    return 0;
-  }
-
   async function loadObjects(query, options){
     if (!el.tableBody) return;
     const settings = options || {};
@@ -360,14 +343,7 @@
     showSearchResultsSection();
     const filterLabel = String(settings.label || searchQuery || 'Tous les objets').trim();
     const orderedItems = Array.isArray(items) ? items.slice().sort(function (a, b) {
-      const pa = getDashboardSortPriority(a, searchQuery, !!settings.showAll);
-      const pb = getDashboardSortPriority(b, searchQuery, !!settings.showAll);
-      if (pa !== pb) return pa - pb;
-      const nameA = String(a && a.name ? a.name : '').toLowerCase();
-      const nameB = String(b && b.name ? b.name : '').toLowerCase();
-      if (nameA < nameB) return -1;
-      if (nameA > nameB) return 1;
-      return String(a && a.id ? a.id : '').localeCompare(String(b && b.id ? b.id : ''));
+      return adminSortPriority(a) - adminSortPriority(b);
     }) : [];
     orderedItems.forEach(item=>{
       const id=String(item.id||'').trim(); if(id) objectCacheById[id]=item;
@@ -455,7 +431,7 @@
   if(_openHistoryEl){ _openHistoryEl.addEventListener('click', e=>{ e.preventDefault(); showHistoryOverlay(); }); }
   // Delegated handler: if element is injected or click target differs, still handle clicks
   document.addEventListener('click', function(e){ const a = e.target.closest && e.target.closest('#openHistoryOverlay'); if(a){ e.preventDefault(); showHistoryOverlay(); } });
-  document.getElementById('logoutLink').addEventListener('click',e=>{ e.preventDefault(); localStorage.clear(); window.location.href='login.html'; });
+  document.getElementById('logoutLink').addEventListener('click',e=>{ e.preventDefault(); localStorage.clear(); window.location.replace('login.html'); });
   el.overlayClose.addEventListener('click',closeOverlay);
   el.overlayBackdrop.addEventListener('click',closeOverlay);
   document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ el.profileDropdown.classList.remove('open'); if(!el.infoOverlay.hidden)closeOverlay(); } });
@@ -472,8 +448,8 @@
     setInterval(()=>{ if(!document.hidden){ checkNotifs(); } }, 30000);
     setInterval(()=>{ if(!document.hidden){ loadStats(); loadActivity(); } }, 60000);
   });
-  document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ loadObjects(lastObjectView.query, lastObjectView.showAll ? { showAll: true, label: lastObjectView.label } : { label: lastObjectView.label }); loadStats(); updatePositionBadge(); } });
-  window.addEventListener('storage',e=>{ if(e.key==='user_room'){ updatePositionBadge(); } });
+  document.addEventListener('visibilitychange',()=>{ if(!document.hidden){ refreshCurrentObjectsView(); loadStats(); updatePositionBadge(); } });
+  window.addEventListener('storage',e=>{ if(e.key==='user_room' || e.key==='user_x' || e.key==='user_y' || e.key==='user_z'){ updatePositionBadge(); refreshCurrentObjectsView(); } });
   if (el.globalSearch) {
     el.globalSearch.addEventListener('input', function () {
       const q = String(this.value || '').trim();

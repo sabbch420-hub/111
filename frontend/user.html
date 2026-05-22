@@ -2876,7 +2876,7 @@ if (openProfileOverlay) {
         localStorage.removeItem("user_x");
         localStorage.removeItem("user_y");
         localStorage.removeItem("user_z");
-        window.location.href = "login.html";
+        window.location.replace("login.html");
       });
     }
   });
@@ -2897,7 +2897,7 @@ if (logoutLink) {
     localStorage.removeItem("user_x");
     localStorage.removeItem("user_y");
     localStorage.removeItem("user_z");
-    window.location.href = "login.html";
+    window.location.replace("login.html");
   });
 }
 

@@ -206,7 +206,7 @@
     <script src="translations.js"></script>
     <script src="admin-reports.js?v=20260428b"></script>
     <script>
-        if(localStorage.getItem("userRole")!=="admin")window.location.href="user.html";
+        if(localStorage.getItem("userRole")!=="admin")window.location.replace("user.html");
     </script>
     <script src="admin-dashboard.js?v=20260501-charts"></script>
 </body>

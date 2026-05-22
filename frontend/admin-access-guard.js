@@ -16,27 +16,28 @@
     document.documentElement.style.visibility = '';
   }
 
-  const token = String(localStorage.getItem('userToken') || '').trim();
-  if (!token) {
-    redirect('login.html');
-    return;
-  }
-
-  hidePage();
-
-  fetch(`${apiBase}/user/profile`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`
+  async function ensureAdminAccess() {
+    const token = String(localStorage.getItem('userToken') || '').trim();
+    if (!token) {
+      redirect('login.html');
+      return;
     }
-  })
-    .then((response) => {
+
+    hidePage();
+
+    try {
+      const response = await fetch(`${apiBase}/user/profile`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
       if (!response.ok) {
         throw new Error(`profile_${response.status}`);
       }
-      return response.json();
-    })
-    .then((profile) => {
+
+      const profile = await response.json();
       const role = String((profile && profile.role) || localStorage.getItem('userRole') || '').trim().toLowerCase();
       if (role !== 'admin') {
         localStorage.setItem('userRole', role || 'user');
@@ -55,9 +56,17 @@
         localStorage.setItem('adminDisplayName', String(profile.display_name));
       }
       showPage();
-    })
-    .catch(() => {
+    } catch (_error) {
       localStorage.removeItem('userRole');
       redirect('login.html');
-    });
+    }
+  }
+
+  ensureAdminAccess();
+
+  window.addEventListener('pageshow', function (event) {
+    if (event.persisted) {
+      ensureAdminAccess();
+    }
+  });
 })();
